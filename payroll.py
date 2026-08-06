@@ -20,11 +20,12 @@ translations = {
         "login_btn": "Login",
         "logout_btn": "Logout",
         "empty_input": "Please enter your National ID.",
-        "welcome": "Successfully logged in. Welcome, {name}!",
         "error_id": "Incorrect National ID. Please check and try again.",
         "error_read": "Error reading file: {error}",
         "dashboard_title": "Employee Dashboard",
-        "attendance_msg": "Your portal session is active.",
+        "welcome_banner": "Welcome, {name}!",
+        "id_display": "National ID:",
+        "status_display": "Status: Active / Verified",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -40,11 +41,12 @@ translations = {
         "login_btn": "تسجيل الدخول",
         "logout_btn": "تسجيل الخروج",
         "empty_input": "الرجاء إدخال الرقم القومي.",
-        "welcome": "تم تسجيل الدخول بنجاح. أهلاً بك يا {name}!",
         "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
         "error_read": "خطأ في قراءة الملف: {error}",
         "dashboard_title": "لوحة معلومات الموظف",
-        "attendance_msg": "جلسة البوابة الخاصة بك نشطة.",
+        "welcome_banner": "أهلاً بك يا {name}!",
+        "id_display": "الرقم القومي:",
+        "status_display": "الحالة: نشط / تم التحقق",
     },
 }
 
@@ -58,6 +60,8 @@ if "employee_df" not in st.session_state:
   st.session_state.employee_df = None
 if "logged_in_user" not in st.session_state:
   st.session_state.logged_in_user = None
+if "logged_in_id" not in st.session_state:
+  st.session_state.logged_in_id = None
 
 # --- Admin Section (Sidebar) ---
 st.sidebar.markdown("---")
@@ -76,14 +80,18 @@ if uploaded_file is not None:
 # --- Main Page Layout ---
 st.title(t["title"])
 
-# Check if an employee is currently logged in
+# Check if an employee is currently logged in -> Show Employee Dashboard
 if st.session_state.logged_in_user:
-  st.success(t["welcome"].format(name=st.session_state.logged_in_user))
-  st.markdown(f"### {t['dashboard_title']}")
-  st.info(t["attendance_msg"])
+  st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
 
+  st.markdown(f"### 📋 {t['dashboard_title']}")
+  st.info(f"**{t['id_display']}** {st.session_state.logged_in_id}")
+  st.success(t["status_display"])
+
+  st.markdown("---")
   if st.button(t["logout_btn"]):
     st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
     st.rerun()
 
 else:
@@ -109,6 +117,7 @@ else:
         if not matched.empty:
           employee_name = matched.iloc[0]["الاسم"]
           st.session_state.logged_in_user = employee_name
+          st.session_state.logged_in_id = national_id_input.strip()
           st.rerun()
         else:
           st.error(t["error_id"])
