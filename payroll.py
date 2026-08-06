@@ -29,16 +29,20 @@ st.markdown("""
 
 st.title("💼 Mirage Employee Portal")
 
-# 3. Session State Initialization
+# 3. CRITICAL: Initialize ALL Session State variables safely at the very top
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
+if "employee" not in st.session_state:
     st.session_state.employee = None
+if "df" not in st.session_state:
+    st.session_state.df = None
 
-# Admin Secret Passcode (Change this to your secure password)
+# Admin Secret Passcode
 ADMIN_SECRET_KEY = "miragehr2026"
 
-# 4. Sidebar: Only visible if NOT logged in as a regular employee, or if Admin mode is requested
+# 4. Sidebar: HR Admin Login Section
 with st.sidebar:
     st.header("🔒 بوابة الإدارة (HR Admin)")
     admin_pass_input = st.text_input("أدخل كلمة مرور المسؤول", type="password")
@@ -50,7 +54,7 @@ with st.sidebar:
         if admin_pass_input.strip() != "":
             st.error("❌ كلمة المرور غير صحيحة")
 
-# Function to load and process Excel securely in memory
+# Function to process Excel securely in memory
 @st.cache_data
 def process_excel(file):
     try:
@@ -93,14 +97,13 @@ if st.session_state.is_admin:
     uploaded_file = st.file_uploader("رفع ملف الرواتب الجديد (Upload Excel)", type=["xlsx", "xls"])
     
     if uploaded_file is not None:
-        st.session_state['df'] = process_excel(uploaded_file)
+        st.session_state.df = process_excel(uploaded_file)
         st.success("✅ تم تحديث بيانات الرواتب في النظام بنجاح!")
 
-    if 'df' in st.session_state and st.session_state['df'] is not None:
+    if st.session_state.df is not None:
         st.write("### قائمة الموظفين المسجلين الحاليين")
-        # Editable table for admin only
         edited_df = st.data_editor(
-            st.session_state['df'][['Full Name', 'Employee ID', 'Base Salary']], 
+            st.session_state.df[['Full Name', 'Employee ID', 'Base Salary']], 
             num_rows="dynamic", 
             use_container_width=True,
             key="admin_editor"
@@ -109,7 +112,7 @@ if st.session_state.is_admin:
             for idx, row in edited_df.iterrows():
                 emp_id = row['Employee ID']
                 new_base = row['Base Salary']
-                st.session_state['df'].loc[st.session_state['df']['Employee ID'] == emp_id, 'Base Salary'] = new_base
+                st.session_state.df.loc[st.session_state.df['Employee ID'] == emp_id, 'Base Salary'] = new_base
             st.success("✅ تم الحفظ بنجاح!")
             
     if st.button("تسجيل الخروج من لوحة الإدارة"):
@@ -118,9 +121,8 @@ if st.session_state.is_admin:
 
 # --- SCENARIO B: REGULAR EMPLOYEE LOGIN & VIEW ---
 else:
-    # Check if data file exists in system memory
-    if 'df' not in st.session_state or st.session_state['df'] is None:
-        st.info("👋 مرحباً بك في بوابة موظفي ميراج. النظام قيد التحديث من قبل الإدارة، يرجى العودة لاحقاً.")
+    if st.session_state.df is None:
+        st.info("👋 مرحباً بك في بوابة موظفي ميراج. النظام قيد التحديث من قبل الإدارة، يرجى العودة لاحقاً أو انتظار رفع ملف الرواتب من المسؤول.")
         st.stop()
 
     # Employee Login Screen
@@ -137,7 +139,7 @@ else:
                 clean_id = emp_id_input.strip()
                 clean_pass = password_input.strip()
                 
-                df_system = st.session_state['df']
+                df_system = st.session_state.df
                 matching_rows = df_system[df_system['Employee ID'] == clean_id]
                 
                 if not matching_rows.empty:
@@ -151,7 +153,7 @@ else:
                 else:
                     st.error("❌ رقم الموظف (الرقم القومي) غير موجود.")
 
-    # Authenticated Employee Payslip View (Can ONLY see their own data)
+    # Authenticated Employee Payslip View
     else:
         emp = st.session_state.employee
         st.title(f"Welcome, {emp['Full Name']} 👋")
@@ -165,8 +167,7 @@ else:
         st.markdown("---")
         st.subheader("📊 تفاصيل الراتب الشهري (Monthly Salary Details)")
 
-        # Fetch secure base salary for this specific employee from memory state
-        current_emp_row = st.session_state['df'][st.session_state['df']['Employee ID'] == emp['Employee ID']]
+        current_emp_row = st.session_state.df[st.session_state.df['Employee ID'] == emp['Employee ID']]
         base_salary = float(current_emp_row.iloc[0]['Base Salary'])
         
         col1, col2 = st.columns(2)
