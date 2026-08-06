@@ -77,9 +77,10 @@ selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "Engl
 t = translations[selected_lang]
 
 SHARED_FILE = "shared_payroll.xlsx"
-ADMIN_PASSWORD = (
-    "admin123"  # You can change this secret password to whatever you want
-)
+
+# --- Hard Admin Password ---
+# You can change this complex string to any hard password you prefer
+ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # Initialize session states
 if "logged_in_user" not in st.session_state:
@@ -107,7 +108,6 @@ if not st.session_state.admin_authenticated:
     else:
       st.sidebar.error(t["admin_access_denied"])
 else:
-  # Once unlocked, show the upload and delete controls
   uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
   if uploaded_file is not None:
@@ -131,7 +131,6 @@ else:
 # Check globally if the shared file exists on the server backend
 file_exists = os.path.exists(SHARED_FILE)
 
-# If the file was deleted globally by the admin, force logout any active user session
 if not file_exists and st.session_state.logged_in_user is not None:
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
@@ -141,7 +140,6 @@ if not file_exists and st.session_state.logged_in_user is not None:
 # --- Main Page Layout ---
 st.title(t["title"])
 
-# Check if an employee is currently logged in -> Show Employee Dashboard
 if st.session_state.logged_in_user:
   st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
 
@@ -208,7 +206,6 @@ if st.session_state.logged_in_user:
       else:
         other_cols[col_name] = display_val
 
-    # Render Earnings Section
     if earnings_cols:
       st.markdown(f"#### {t['earnings_header']}")
       cols = st.columns(2)
@@ -218,7 +215,6 @@ if st.session_state.logged_in_user:
           st.metric(label=str(c_name), value=str(c_val))
         idx += 1
 
-    # Render Deductions Section
     if deductions_cols:
       st.markdown(f"#### {t['deductions_header']}")
       cols = st.columns(2)
@@ -228,7 +224,6 @@ if st.session_state.logged_in_user:
           st.metric(label=str(c_name), value=str(c_val))
         idx += 1
 
-    # Render Other Details Section
     if other_cols:
       st.markdown(f"#### {t['other_header']}")
       cols = st.columns(2)
