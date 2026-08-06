@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 
 # 1. Page Configuration
 st.set_page_config(
@@ -28,33 +27,40 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Load and Process Employee Data from Excel
+st.title("💼 Mirage Employee Portal")
+
+# 3. File Uploader Section for HR / Admin
+st.sidebar.header("📁 لوحة تحكم الإدارة (HR Upload)")
+uploaded_file = st.sidebar.file_uploader("قم بتحديث ملف الاكسل (Upload Daily Excel)", type=["xlsx", "xls"])
+
+# Function to load and process data
 @st.cache_data
-def load_employee_data():
-    excel_path = "فنيين ميراج.xlsx"
-    if not os.path.exists(excel_path):
-        return None
-    
+def process_excel(file):
     try:
-        # Read both sheets
-        df1 = pd.read_excel(excel_path, sheet_name='Sheet1')
-        df2 = pd.read_excel(excel_path, sheet_name='Sheet2')
+        xls = pd.ExcelFile(file)
+        sheet_names = xls.sheet_names
+        
+        df1 = pd.read_excel(file, sheet_name=sheet_names[0])
         
         # Clean Sheet 1 (contains salary)
-        df1['Base Salary'] = pd.to_numeric(df1['الراتب الاساسي'], errors='coerce').fillna(5000)
+        if 'الراتب الاساسي' in df1.columns:
+            df1['Base Salary'] = pd.to_numeric(df1['الراتب الاساسي'], errors='coerce').fillna(5000)
+        else:
+            df1['Base Salary'] = 5000
+            
         df1_clean = df1[['الاسم', 'الرقم القومي', 'Base Salary']].copy()
         
-        # Clean Sheet 2 (default base salary to 5000 if not listed)
-        df2_clean = df2[['الاسم', 'الرقم القومي']].copy()
-        df2_clean['Base Salary'] = 5000
-        
-        # Combine sheets
-        combined = pd.concat([df1_clean, df2_clean], ignore_index=True)
-        
-        # Drop rows with missing National ID or Name
+        # Optional: Check if second sheet exists
+        if len(sheet_names) > 1:
+            df2 = pd.read_excel(file, sheet_name=sheet_names[1])
+            df2_clean = df2[['الاسم', 'الرقم القومي']].copy()
+            df2_clean['Base Salary'] = 5000
+            combined = pd.concat([df1_clean, df2_clean], ignore_index=True)
+        else:
+            combined = df1_clean
+            
+        # Clean and filter data
         combined = combined.dropna(subset=['الرقم القومي', 'الاسم'])
-        
-        # Format columns as strings and clean whitespace
         combined['Employee ID'] = combined['الرقم القومي'].astype(str).str.strip()
         combined['Full Name'] = combined['الاسم'].astype(str).str.strip()
         
@@ -63,24 +69,33 @@ def load_employee_data():
         
         return combined
     except Exception as e:
-        st.error(f"Error reading Excel file: {e}")
+        st.error(f"Error processing file: {e}")
         return None
 
-df = load_employee_data()
+# Check if a file is uploaded
+if uploaded_file is not None:
+    df = process_excel(uploaded_file)
+    st.session_state['df'] = df
+else:
+    # Check if data already exists in session state
+    if 'df' in st.session_state:
+        df = st.session_state['df']
+    else:
+        df = None
 
-if df is None or df.empty:
-    st.error("⚠️ Could not load 'فنيين ميراج.xlsx'. Please ensure the Excel file is uploaded to the root of your GitHub repository.")
+# 4. App Logic & Login Screen
+if df is None:
+    st.info("👈 Please upload your company Excel file (`فنيين ميراج.xlsx`) using the sidebar to start the portal.")
     st.stop()
 
-# 4. Session State Management for Login
+# Session State Management for Login
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.employee = None
 
-# 5. Login View
+# Login View
 if not st.session_state.logged_in:
-    st.title("💼 Mirage Employee Portal")
-    st.subheader("بوابة موظفي ميراج - تسجيل الدخول")
+    st.subheader("تسجيل الدخول للموظفين (Employee Login)")
     st.write("الرجاء إدخال الرقم القومي (اسم المستخدم) وكلمة المرور.")
 
     with st.form("login_form"):
@@ -105,7 +120,7 @@ if not st.session_state.logged_in:
             else:
                 st.error("❌ رقم الموظف (الرقم القومي) غير موجود. (ID Not Found)")
 
-# 6. Authenticated Employee Dashboard View
+# 5. Authenticated Employee Dashboard View
 else:
     emp = st.session_state.employee
     st.title(f"Welcome, {emp['Full Name']} 👋")
