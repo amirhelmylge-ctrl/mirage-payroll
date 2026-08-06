@@ -34,9 +34,8 @@ translations = {
         "dashboard_title": "Detailed Payroll & Salary Breakdown",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
-        "earnings_header": "💰 Earnings & Additions",
-        "deductions_header": "📉 Deductions & Paycuts",
-        "other_header": "📋 General & Other Details",
+        "table_col_key": "Field / Column",
+        "table_col_val": "Value",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -65,9 +64,8 @@ translations = {
         "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
-        "earnings_header": "💰 الإيرادات والمكافآت",
-        "deductions_header": "📉 الخصومات والاستقطاعات",
-        "other_header": "📋 البيانات العامة والأخرى",
+        "table_col_key": "الحقل / العمود",
+        "table_col_val": "القيمة",
     },
 }
 
@@ -77,9 +75,6 @@ selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "Engl
 t = translations[selected_lang]
 
 SHARED_FILE = "shared_payroll.xlsx"
-
-# --- Hard Admin Password ---
-# You can change this complex string to any hard password you prefer
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # Initialize session states
@@ -152,86 +147,20 @@ if st.session_state.logged_in_user:
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    earnings_cols = {}
-    deductions_cols = {}
-    other_cols = {}
-
-    bonus_keywords = [
-        "bonus",
-        "incentive",
-        "overtime",
-        "allowance",
-        "add",
-        "مكافأة",
-        "حافز",
-        "إضافي",
-        "بدل",
-        "الراتب",
-        "basic",
-        "salary",
-        "gross",
-        "net",
-        "صافي",
-        "الاساسي",
-    ]
-    deduction_keywords = [
-        "deduction",
-        "cut",
-        "penalty",
-        "absence",
-        "tax",
-        "insurance",
-        "خصم",
-        "جزاء",
-        "غياب",
-        "ضريبة",
-        "تأمين",
-        "استقطاع",
-    ]
-
+    # Convert row data dictionary into a clean Excel-like dataframe view
+    table_data = []
     for col_name, val in row_data.items():
-      if col_name in ["الاسم", "الرقم القومي", "Name", "National ID"]:
-        continue
-
       display_val = val
       if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
         display_val = 0
+      table_data.append(
+          {t["table_col_key"]: str(col_name), t["table_col_val"]: display_val}
+      )
 
-      col_lower = str(col_name).lower()
+    df_display = pd.DataFrame(table_data)
 
-      if any(kw in col_lower for kw in deduction_keywords):
-        deductions_cols[col_name] = display_val
-      elif any(kw in col_lower for kw in bonus_keywords):
-        earnings_cols[col_name] = display_val
-      else:
-        other_cols[col_name] = display_val
-
-    if earnings_cols:
-      st.markdown(f"#### {t['earnings_header']}")
-      cols = st.columns(2)
-      idx = 0
-      for c_name, c_val in earnings_cols.items():
-        with cols[idx % 2]:
-          st.metric(label=str(c_name), value=str(c_val))
-        idx += 1
-
-    if deductions_cols:
-      st.markdown(f"#### {t['deductions_header']}")
-      cols = st.columns(2)
-      idx = 0
-      for c_name, c_val in deductions_cols.items():
-        with cols[idx % 2]:
-          st.metric(label=str(c_name), value=str(c_val))
-        idx += 1
-
-    if other_cols:
-      st.markdown(f"#### {t['other_header']}")
-      cols = st.columns(2)
-      idx = 0
-      for c_name, c_val in other_cols.items():
-        with cols[idx % 2]:
-          st.metric(label=str(c_name), value=str(c_val))
-        idx += 1
+    # Render as an interactive, clean Excel-like grid/table
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
 
   st.markdown("---")
   if st.button(t["logout_btn"]):
