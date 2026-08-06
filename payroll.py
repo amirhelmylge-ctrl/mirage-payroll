@@ -70,6 +70,7 @@ st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
+# Detect if the admin removed the file widget
 if uploaded_file is not None:
   try:
     df = pd.read_excel(uploaded_file)
@@ -78,6 +79,14 @@ if uploaded_file is not None:
     st.sidebar.success(t["upload_success"])
   except Exception as e:
     st.sidebar.error(t["error_read"].format(error=e))
+else:
+  # If file is removed/cleared by the admin, automatically log out any active session
+  if st.session_state.employee_df is not None:
+    st.session_state.employee_df = None
+    st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
+    st.session_state.employee_row_data = None
+    st.rerun()
 
 # --- Main Page Layout ---
 st.title(t["title"])
@@ -101,11 +110,9 @@ if st.session_state.logged_in_user:
     cols = st.columns(2)
     idx = 0
     for col_name, val in row_data.items():
-      # Skip displaying name and national id since they are already at the top banner
       if col_name in ["الاسم", "الرقم القومي", "Name", "National ID"]:
         continue
 
-      # If a value is missing, empty, or NaN, display 0 instead of hiding it
       display_val = val
       if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
         display_val = 0
