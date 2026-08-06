@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import streamlit as st
 
@@ -11,7 +12,11 @@ translations = {
         "subtitle": "Please enter your National ID to proceed.",
         "admin_header": "Admin Control Panel",
         "upload_label": "Upload Employees Excel File",
-        "upload_success": "Employee data successfully loaded and saved!",
+        "remove_btn": "Remove Excel Sheet (Logout Everyone)",
+        "upload_success": (
+            "Excel file uploaded successfully! All employees can now log in."
+        ),
+        "remove_success": "Excel file removed. All active sessions logged out.",
         "upload_warning": (
             "⚠️ Employee database not uploaded yet. Please ask the admin to"
             " upload the Excel file from the sidebar."
@@ -34,7 +39,11 @@ translations = {
         "subtitle": "الرجاء إدخال الرقم القومي الخاص بك للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
         "upload_label": "رفع ملف الـ Excel للموظفين",
-        "upload_success": "تم تحديث وحفظ بيانات الموظفين بنجاح!",
+        "remove_btn": "حذف ملف الـ Excel (تسجيل خروج الجميع)",
+        "upload_success": (
+            "تم رفع ملف الـ Excel بنجاح! يمكن لجميع الموظفين تسجيل الدخول الآن."
+        ),
+        "remove_success": "تم حذف الملف وتسجيل خروج جميع الجلسات النشطة.",
         "upload_warning": (
             "⚠️ لم يتم رفع قاعدة بيانات الموظفين بعد. يرجى من المسؤول رفع ملف الـ"
             " Excel من القائمة الجانبية."
@@ -59,9 +68,9 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-# Initialize session state variables
-if "employee_df" not in st.session_state:
-  st.session_state.employee_df = None
+SHARED_FILE = "shared_payroll.xlsx"
+
+# Initialize local browser session states
 if "logged_in_user" not in st.session_state:
   st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
@@ -72,23 +81,34 @@ if "employee_row_data" not in st.session_state:
 # --- Admin Section (Sidebar) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
+
 uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
 if uploaded_file is not None:
   try:
-    df = pd.read_excel(uploaded_file)
-    df.columns = df.columns.str.strip()
-    st.session_state.employee_df = df
+    # Save the uploaded file globally to the server backend storage
+    with open(SHARED_FILE, "wb") as f:
+      f.write(uploaded_file.getbuffer())
     st.sidebar.success(t["upload_success"])
   except Exception as e:
     st.sidebar.error(t["error_read"].format(error=e))
-else:
-  if st.session_state.employee_df is not None:
-    st.session_state.employee_df = None
-    st.session_state.logged_in_user = None
-    st.session_state.logged_in_id = None
-    st.session_state.employee_row_data = None
+
+# Option for admin to clear/remove the file from any device they are on
+if os.path.exists(SHARED_FILE):
+  if st.sidebar.button(t["remove_btn"]):
+    os.remove(SHARED_FILE)
+    st.sidebar.success(t["remove_success"])
     st.rerun()
+
+# Check globally if the shared file exists on the server backend
+file_exists = os.path.exists(SHARED_FILE)
+
+# If the file was deleted globally by the admin, force logout any user currently looking at a dashboard
+if not file_exists and st.session_state.logged_in_user is not None:
+  st.session_state.logged_in_user = None
+  st.session_state.logged_in_id = None
+  st.session_state.employee_row_data = None
+  st.rerun()
 
 # --- Main Page Layout ---
 st.title(t["title"])
@@ -106,7 +126,7 @@ if st.session_state.logged_in_user:
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    # Categorize columns into Earnings, Deductions, and Others automatically based on keywords
+    # Categorize columns into Earnings, Deductions, and Others automatically
     earnings_cols = {}
     deductions_cols = {}
     other_cols = {}
@@ -154,7 +174,6 @@ if st.session_state.logged_in_user:
 
       col_lower = str(col_name).lower()
 
-      # Match by category keywords
       if any(kw in col_lower for kw in deduction_keywords):
         deductions_cols[col_name] = display_val
       elif any(kw in col_lower for kw in bonus_keywords):
@@ -202,28 +221,31 @@ if st.session_state.logged_in_user:
 else:
   st.write(t["subtitle"])
 
-  if st.session_state.employee_df is None:
+  if not file_exists:
     st.warning(t["upload_warning"])
   else:
-    df = st.session_state.employee_df
+    try:
+      df = pd.read_excel(SHARED_FILE)
+      df.columns = df.columns.str.strip()
 
-    # Input field for National ID
-    national_id_input = st.text_input(t["input_label"], type="password")
+      national_id_input = st.text_input(t["input_label"], type="password")
 
-    if st.button(t["login_btn"]):
-      if not national_id_input:
-        st.warning(t["empty_input"])
-      else:
-        matched = df[
-            df["الرقم القومي"].astype(str).str.strip()
-            == national_id_input.strip()
-        ]
-
-        if not matched.empty:
-          employee_name = matched.iloc[0]["الاسم"]
-          st.session_state.logged_in_user = employee_name
-          st.session_state.logged_in_id = national_id_input.strip()
-          st.session_state.employee_row_data = matched.iloc[0].to_dict()
-          st.rerun()
+      if st.button(t["login_btn"]):
+        if not national_id_input:
+          st.warning(t["empty_input"])
         else:
-          st.error(t["error_id"])
+          matched = df[
+              df["الرقم القومي"].astype(str).str.strip()
+              == national_id_input.strip()
+          ]
+
+          if not matched.empty:
+            employee_name = matched.iloc[0]["الاسم"]
+            st.session_state.logged_in_user = employee_name
+            st.session_state.logged_in_id = national_id_input.strip()
+            st.session_state.employee_row_data = matched.iloc[0].to_dict()
+            st.rerun()
+          else:
+            st.error(t["error_id"])
+    except Exception as e:
+      st.error(t["error_read"].format(error=e))
