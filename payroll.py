@@ -9,7 +9,7 @@ st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 translations = {
     "English": {
         "title": "🔐 Employee Login Portal",
-        "subtitle": "Please enter your National ID to proceed.",
+        "subtitle": "Please enter your National ID and Password to proceed.",
         "admin_header": "Admin Control Panel",
         "admin_pass_label": "Enter Admin Password:",
         "admin_pass_btn": "Unlock Admin Panel",
@@ -26,10 +26,17 @@ translations = {
             " upload the Excel file from the sidebar."
         ),
         "input_label": "National ID (الرقم القومي):",
+        "password_input_label": "Password (كلمة المرور):",
         "login_btn": "Login",
         "logout_btn": "Logout",
-        "empty_input": "Please enter your National ID.",
-        "error_id": "Incorrect National ID. Please check and try again.",
+        "empty_input": "Please enter both your National ID and Password.",
+        "error_id": (
+            "Incorrect National ID or Password. Please check and try again."
+        ),
+        "missing_pass_col": (
+            "⚠️ Error: The uploaded Excel file must contain a password column"
+            " (named 'Password' or 'كلمة المرور')."
+        ),
         "error_read": "Error reading file: {error}",
         "dashboard_title": "Detailed Payroll & Salary Breakdown",
         "welcome_banner": "Welcome, {name}!",
@@ -39,7 +46,7 @@ translations = {
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
-        "subtitle": "الرجاء إدخال الرقم القومي الخاص بك للمتابعة.",
+        "subtitle": "الرجاء إدخال الرقم القومي وكلمة المرور للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
         "admin_pass_label": "أدخل كلمة مرور المسؤول:",
         "admin_pass_btn": "فتح لوحة المسؤول",
@@ -56,10 +63,15 @@ translations = {
             " Excel من القائمة الجانبية."
         ),
         "input_label": "الرقم القومي (National ID):",
+        "password_input_label": "كلمة المرور (Password):",
         "login_btn": "تسجيل الدخول",
         "logout_btn": "تسجيل الخروج",
-        "empty_input": "الرجاء إدخال الرقم القومي.",
-        "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
+        "empty_input": "الرجاء إدخال الرقم القومي وكلمة المرور معاً.",
+        "error_id": "الرقم القومي أو كلمة المرور غير صحيحة. يرجى التحقق.",
+        "missing_pass_col": (
+            "⚠️ خطأ: يجب أن يحتوي ملف الـ Excel على عمود كلمة المرور (مسمى"
+            " 'Password' أو 'كلمة المرور')."
+        ),
         "error_read": "خطأ في قراءة الملف: {error}",
         "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
         "welcome_banner": "أهلاً بك يا {name}!",
@@ -147,9 +159,15 @@ if st.session_state.logged_in_user:
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    # Convert row data dictionary into a clean Excel-like dataframe view
     table_data = []
     for col_name, val in row_data.items():
+      # Skip showing the password column in the employee dashboard for security
+      if any(
+          k in str(col_name).lower()
+          for k in ["password", "pass", "كلمة المرور", "الرقم السري", "كلمه السر"]
+      ):
+        continue
+
       display_val = val
       if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
         display_val = 0
@@ -158,8 +176,6 @@ if st.session_state.logged_in_user:
       )
 
     df_display = pd.DataFrame(table_data)
-
-    # Render as an interactive, clean Excel-like grid/table
     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
   st.markdown("---")
@@ -179,24 +195,54 @@ else:
       df = pd.read_excel(SHARED_FILE)
       df.columns = df.columns.str.strip()
 
-      national_id_input = st.text_input(t["input_label"], type="password")
+      # Identify the password column dynamically from the Excel sheet
+      pass_col = None
+      for col in df.columns:
+        if (
+            any(
+                k in str(col).lower()
+                for k in [
+                    "password",
+                    "pass",
+                    "كلمة المرور",
+                    "الرقم السري",
+                    "كلمه السر",
+                ]
+            )
+            and "قومي" not in str(col)
+            and "id" not in str(col).lower()
+        ):
+          pass_col = col
+          break
 
-      if st.button(t["login_btn"]):
-        if not national_id_input:
-          st.warning(t["empty_input"])
-        else:
-          matched = df[
-              df["الرقم القومي"].astype(str).str.strip()
-              == national_id_input.strip()
-          ]
+      if pass_col is None:
+        st.error(t["missing_pass_col"])
+      else:
+        national_id_input = st.text_input(t["input_label"])
+        password_input = st.text_input(t["password_input_label"], type="password")
 
-          if not matched.empty:
-            employee_name = matched.iloc[0]["الاسم"]
-            st.session_state.logged_in_user = employee_name
-            st.session_state.logged_in_id = national_id_input.strip()
-            st.session_state.employee_row_data = matched.iloc[0].to_dict()
-            st.rerun()
+        if st.button(t["login_btn"]):
+          if not national_id_input or not password_input:
+            st.warning(t["empty_input"])
           else:
-            st.error(t["error_id"])
+            matched = df[
+                (
+                    df["الرقم القومي"].astype(str).str.strip()
+                    == national_id_input.strip()
+                )
+                & (
+                    df[pass_col].astype(str).str.strip()
+                    == password_input.strip()
+                )
+            ]
+
+            if not matched.empty:
+              employee_name = matched.iloc[0]["الاسم"]
+              st.session_state.logged_in_user = employee_name
+              st.session_state.logged_in_id = national_id_input.strip()
+              st.session_state.employee_row_data = matched.iloc[0].to_dict()
+              st.rerun()
+            else:
+              st.error(t["error_id"])
     except Exception as e:
       st.error(t["error_read"].format(error=e))
