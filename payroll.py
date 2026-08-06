@@ -22,10 +22,10 @@ translations = {
         "empty_input": "Please enter your National ID.",
         "error_id": "Incorrect National ID. Please check and try again.",
         "error_read": "Error reading file: {error}",
-        "dashboard_title": "Payroll Breakdown & Salary Details",
+        "dashboard_title": "Detailed Payroll & Salary Breakdown",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
-        "details_header": "Detailed Salary Breakdown (Bonuses, Deductions, etc.)",
+        "details_header": "Salary Components & Breakdown",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -43,10 +43,10 @@ translations = {
         "empty_input": "الرجاء إدخال الرقم القومي.",
         "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
         "error_read": "خطأ في قراءة الملف: {error}",
-        "dashboard_title": "تفاصيل الراتب والخصومات والمكافآت",
+        "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
-        "details_header": "تفاصيل مفردات الراتب (المكافآت، الخصومات، وغيرها)",
+        "details_header": "عناصر الراتب والمكافآت والخصومات",
     },
 }
 
@@ -97,16 +97,21 @@ if st.session_state.logged_in_user:
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    # Display columns in clean organized columns layout (e.g., 2 columns side-by-side)
+    # Display columns in a clean 2-column metrics layout
     cols = st.columns(2)
     idx = 0
     for col_name, val in row_data.items():
-      # Skip showing name and national ID inside the metrics since they are already at the top banner
+      # Skip displaying name and national id since they are already at the top banner
       if col_name in ["الاسم", "الرقم القومي", "Name", "National ID"]:
         continue
 
+      # If a value is missing, empty, or NaN, display 0 instead of hiding it
+      display_val = val
+      if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
+        display_val = 0
+
       with cols[idx % 2]:
-        st.metric(label=str(col_name), value=str(val))
+        st.metric(label=str(col_name), value=str(display_val))
       idx += 1
 
   st.markdown("---")
