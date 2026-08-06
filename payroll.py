@@ -22,10 +22,10 @@ translations = {
         "empty_input": "Please enter your National ID.",
         "error_id": "Incorrect National ID. Please check and try again.",
         "error_read": "Error reading file: {error}",
-        "dashboard_title": "Employee Dashboard & Payroll Information",
+        "dashboard_title": "Payroll Breakdown & Salary Details",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
-        "details_header": "Payroll & Record Details",
+        "details_header": "Detailed Salary Breakdown (Bonuses, Deductions, etc.)",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -43,10 +43,10 @@ translations = {
         "empty_input": "الرجاء إدخال الرقم القومي.",
         "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
         "error_read": "خطأ في قراءة الملف: {error}",
-        "dashboard_title": "لوحة معلومات الموظف ومعلومات الراتب",
+        "dashboard_title": "تفاصيل الراتب والخصومات والمكافآت",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
-        "details_header": "تفاصيل الراتب والبيانات",
+        "details_header": "تفاصيل مفردات الراتب (المكافآت، الخصومات، وغيرها)",
     },
 }
 
@@ -92,13 +92,22 @@ if st.session_state.logged_in_user:
       f" `{str(st.session_state.logged_in_id).strip()}`"
   )
 
-  # Display all columns/salary information from their row in the Excel sheet
   st.markdown(f"#### {t['details_header']}")
+
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
+
+    # Display columns in clean organized columns layout (e.g., 2 columns side-by-side)
+    cols = st.columns(2)
+    idx = 0
     for col_name, val in row_data.items():
-      # Skip displaying the name and national ID again if they are already highlighted above, or show everything cleanly
-      st.metric(label=str(col_name), value=str(val))
+      # Skip showing name and national ID inside the metrics since they are already at the top banner
+      if col_name in ["الاسم", "الرقم القومي", "Name", "National ID"]:
+        continue
+
+      with cols[idx % 2]:
+        st.metric(label=str(col_name), value=str(val))
+      idx += 1
 
   st.markdown("---")
   if st.button(t["logout_btn"]):
@@ -122,7 +131,6 @@ else:
       if not national_id_input:
         st.warning(t["empty_input"])
       else:
-        # Match input against the 'الرقم القومي' column safely converted to string
         matched = df[
             df["الرقم القومي"].astype(str).str.strip()
             == national_id_input.strip()
@@ -132,7 +140,6 @@ else:
           employee_name = matched.iloc[0]["الاسم"]
           st.session_state.logged_in_user = employee_name
           st.session_state.logged_in_id = national_id_input.strip()
-          # Save the entire row data dictionary for this employee
           st.session_state.employee_row_data = matched.iloc[0].to_dict()
           st.rerun()
         else:
