@@ -25,7 +25,9 @@ translations = {
         "dashboard_title": "Detailed Payroll & Salary Breakdown",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
-        "details_header": "Salary Components & Breakdown",
+        "earnings_header": "💰 Earnings & Additions",
+        "deductions_header": "📉 Deductions & Paycuts",
+        "other_header": "📋 General & Other Details",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -46,7 +48,9 @@ translations = {
         "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
-        "details_header": "عناصر الراتب والمكافآت والخصومات",
+        "earnings_header": "💰 الإيرادات والمكافآت",
+        "deductions_header": "📉 الخصومات والاستقطاعات",
+        "other_header": "📋 البيانات العامة والأخرى",
     },
 }
 
@@ -70,7 +74,6 @@ st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
-# Detect if the admin removed the file widget
 if uploaded_file is not None:
   try:
     df = pd.read_excel(uploaded_file)
@@ -80,7 +83,6 @@ if uploaded_file is not None:
   except Exception as e:
     st.sidebar.error(t["error_read"].format(error=e))
 else:
-  # If file is removed/cleared by the admin, automatically log out any active session
   if st.session_state.employee_df is not None:
     st.session_state.employee_df = None
     st.session_state.logged_in_user = None
@@ -101,14 +103,47 @@ if st.session_state.logged_in_user:
       f" `{str(st.session_state.logged_in_id).strip()}`"
   )
 
-  st.markdown(f"#### {t['details_header']}")
-
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    # Display columns in a clean 2-column metrics layout
-    cols = st.columns(2)
-    idx = 0
+    # Categorize columns into Earnings, Deductions, and Others automatically based on keywords
+    earnings_cols = {}
+    deductions_cols = {}
+    other_cols = {}
+
+    bonus_keywords = [
+        "bonus",
+        "incentive",
+        "overtime",
+        "allowance",
+        "add",
+        "مكافأة",
+        "حافز",
+        "إضافي",
+        "بدل",
+        "الراتب",
+        "basic",
+        "salary",
+        "gross",
+        "net",
+        "صافي",
+        "الاساسي",
+    ]
+    deduction_keywords = [
+        "deduction",
+        "cut",
+        "penalty",
+        "absence",
+        "tax",
+        "insurance",
+        "خصم",
+        "جزاء",
+        "غياب",
+        "ضريبة",
+        "تأمين",
+        "استقطاع",
+    ]
+
     for col_name, val in row_data.items():
       if col_name in ["الاسم", "الرقم القومي", "Name", "National ID"]:
         continue
@@ -117,9 +152,45 @@ if st.session_state.logged_in_user:
       if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
         display_val = 0
 
-      with cols[idx % 2]:
-        st.metric(label=str(col_name), value=str(display_val))
-      idx += 1
+      col_lower = str(col_name).lower()
+
+      # Match by category keywords
+      if any(kw in col_lower for kw in deduction_keywords):
+        deductions_cols[col_name] = display_val
+      elif any(kw in col_lower for kw in bonus_keywords):
+        earnings_cols[col_name] = display_val
+      else:
+        other_cols[col_name] = display_val
+
+    # Render Earnings Section
+    if earnings_cols:
+      st.markdown(f"#### {t['earnings_header']}")
+      cols = st.columns(2)
+      idx = 0
+      for c_name, c_val in earnings_cols.items():
+        with cols[idx % 2]:
+          st.metric(label=str(c_name), value=str(c_val))
+        idx += 1
+
+    # Render Deductions Section
+    if deductions_cols:
+      st.markdown(f"#### {t['deductions_header']}")
+      cols = st.columns(2)
+      idx = 0
+      for c_name, c_val in deductions_cols.items():
+        with cols[idx % 2]:
+          st.metric(label=str(c_name), value=str(c_val))
+        idx += 1
+
+    # Render Other Details Section
+    if other_cols:
+      st.markdown(f"#### {t['other_header']}")
+      cols = st.columns(2)
+      idx = 0
+      for c_name, c_val in other_cols.items():
+        with cols[idx % 2]:
+          st.metric(label=str(c_name), value=str(c_val))
+        idx += 1
 
   st.markdown("---")
   if st.button(t["logout_btn"]):
