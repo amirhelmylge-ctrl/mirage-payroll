@@ -18,10 +18,13 @@ translations = {
         ),
         "input_label": "National ID (الرقم القومي):",
         "login_btn": "Login",
+        "logout_btn": "Logout",
         "empty_input": "Please enter your National ID.",
-        "welcome": "Welcome, {name}! Successfully logged in.",
+        "welcome": "Successfully logged in. Welcome, {name}!",
         "error_id": "Incorrect National ID. Please check and try again.",
         "error_read": "Error reading file: {error}",
+        "dashboard_title": "Employee Dashboard",
+        "attendance_msg": "Your portal session is active.",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -35,10 +38,13 @@ translations = {
         ),
         "input_label": "الرقم القومي (National ID):",
         "login_btn": "تسجيل الدخول",
+        "logout_btn": "تسجيل الخروج",
         "empty_input": "الرجاء إدخال الرقم القومي.",
-        "welcome": "مرحباً، {name}! تم تسجيل الدخول بنجاح.",
+        "welcome": "تم تسجيل الدخول بنجاح. أهلاً بك يا {name}!",
         "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
         "error_read": "خطأ في قراءة الملف: {error}",
+        "dashboard_title": "لوحة معلومات الموظف",
+        "attendance_msg": "جلسة البوابة الخاصة بك نشطة.",
     },
 }
 
@@ -47,16 +53,17 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-# Initialize session state for uploaded data
+# Initialize session state variables
 if "employee_df" not in st.session_state:
   st.session_state.employee_df = None
+if "logged_in_user" not in st.session_state:
+  st.session_state.logged_in_user = None
 
 # --- Admin Section (Sidebar) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
-# Automatically process file as soon as it is uploaded
 if uploaded_file is not None:
   try:
     df = pd.read_excel(uploaded_file)
@@ -68,28 +75,40 @@ if uploaded_file is not None:
 
 # --- Main Page Layout ---
 st.title(t["title"])
-st.write(t["subtitle"])
 
-if st.session_state.employee_df is None:
-  st.warning(t["upload_warning"])
+# Check if an employee is currently logged in
+if st.session_state.logged_in_user:
+  st.success(t["welcome"].format(name=st.session_state.logged_in_user))
+  st.markdown(f"### {t['dashboard_title']}")
+  st.info(t["attendance_msg"])
+
+  if st.button(t["logout_btn"]):
+    st.session_state.logged_in_user = None
+    st.rerun()
+
 else:
-  df = st.session_state.employee_df
+  st.write(t["subtitle"])
 
-  # Input field for National ID
-  national_id_input = st.text_input(t["input_label"], type="password")
+  if st.session_state.employee_df is None:
+    st.warning(t["upload_warning"])
+  else:
+    df = st.session_state.employee_df
 
-  if st.button(t["login_btn"]):
-    if not national_id_input:
-      st.warning(t["empty_input"])
-    else:
-      # Match input against the 'الرقم القومي' column
-      matched = df[
-          df["الرقم القومي"].astype(str).str.strip()
-          == national_id_input.strip()
-      ]
+    # Input field for National ID
+    national_id_input = st.text_input(t["input_label"], type="password")
 
-      if not matched.empty:
-        employee_name = matched.iloc[0]["الاسم"]
-        st.success(t["welcome"].format(name=employee_name))
+    if st.button(t["login_btn"]):
+      if not national_id_input:
+        st.warning(t["empty_input"])
       else:
-        st.error(t["error_id"])
+        matched = df[
+            df["الرقم القومي"].astype(str).str.strip()
+            == national_id_input.strip()
+        ]
+
+        if not matched.empty:
+          employee_name = matched.iloc[0]["الاسم"]
+          st.session_state.logged_in_user = employee_name
+          st.rerun()
+        else:
+          st.error(t["error_id"])
