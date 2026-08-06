@@ -1,178 +1,142 @@
-import React, { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import streamlit as st
+import pandas as pd
+import os
 
-// Initialize Supabase Client (Replace with your project credentials)
-const supabaseUrl = 'YOUR_SUPABASE_URL';
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
-const supabase = createClient(supabaseUrl, supabaseKey);
+# 1. Page Configuration
+st.set_page_config(
+    page_title="Mirage Payroll Portal",
+    page_icon="💼",
+    layout="centered"
+)
 
-export default function MiragePayrollApp() {
-  const [employeeId, setEmployeeId] = useState('');
-  const [password, setPassword] = useState('');
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // Handle Login
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      // Query employee by ID (الرقم القومي)
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('employee_id', employeeId)
-        .single();
-
-      if (error || !data) {
-        throw new Error('Invalid Employee ID or password.');
-      }
-
-      // In production, verify hashed password. Here we match plain or hashed password check:
-      if (data.password_hash !== password) {
-        throw new Error('Invalid Employee ID or password.');
-      }
-
-      setUser(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+# 2. Custom UI Styling
+st.markdown("""
+    <style>
+    .main { background-color: #F3F4F6; }
+    .stButton>button { 
+        width: 100%; 
+        background-color: #2563EB; 
+        color: white; 
+        font-weight: bold; 
+        border-radius: 8px; 
+        padding: 10px; 
     }
-  };
+    .stButton>button:hover { 
+        background-color: #1D4ED8; 
+        color: white; 
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-  // Handle Logout
-  const handleLogout = () => {
-    setUser(null);
-    setEmployeeId('');
-    setPassword('');
-  };
+# 3. Load and Process Employee Data from Excel
+@st.cache_data
+def load_employee_data():
+    excel_path = "فنيين ميراج.xlsx"
+    if not os.path.exists(excel_path):
+        return None
+    
+    try:
+        # Read both sheets
+        df1 = pd.read_excel(excel_path, sheet_name='Sheet1')
+        df2 = pd.read_excel(excel_path, sheet_name='Sheet2')
+        
+        # Clean Sheet 1 (contains salary)
+        df1['Base Salary'] = pd.to_numeric(df1['الراتب الاساسي'], errors='coerce').fillna(5000)
+        df1_clean = df1[['الاسم', 'الرقم القومي', 'Base Salary']].copy()
+        
+        # Clean Sheet 2 (default base salary to 5000 if not listed)
+        df2_clean = df2[['الاسم', 'الرقم القومي']].copy()
+        df2_clean['Base Salary'] = 5000
+        
+        # Combine sheets
+        combined = pd.concat([df1_clean, df2_clean], ignore_index=True)
+        
+        # Drop rows with missing National ID or Name
+        combined = combined.dropna(subset=['الرقم القومي', 'الاسم'])
+        
+        # Format columns as strings and clean whitespace
+        combined['Employee ID'] = combined['الرقم القومي'].astype(str).str.strip()
+        combined['Full Name'] = combined['الاسم'].astype(str).str.strip()
+        
+        # Generate default password (last 4 digits of National ID)
+        combined['Password'] = combined['Employee ID'].apply(lambda x: x[-4:] if len(x) >= 4 else x)
+        
+        return combined
+    except Exception as e:
+        st.error(f"Error reading Excel file: {e}")
+        return None
 
-  // If not logged in, show Login Screen
-  if (!user) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h2 style={styles.title}>Mirage Employee Portal</h2>
-          <p style={styles.subtitle}>Sign in with your ID and custom password</p>
-          
-          {error && <div style={styles.error}>{error}</div>}
+df = load_employee_data()
 
-          <form onSubmit={handleLogin} style={styles.form}>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Employee ID (الرقم القومي)</label>
-              <input
-                type="text"
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                placeholder="Enter your ID..."
-                required
-                style={styles.input}
-              />
-            </div>
+if df is None or df.empty:
+    st.error("⚠️ Could not load 'فنيين ميراج.xlsx'. Please ensure the Excel file is uploaded to the root of your GitHub repository.")
+    st.stop()
 
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password..."
-                required
-                style={styles.input}
-              />
-            </div>
+# 4. Session State Management for Login
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.employee = None
 
-            <button type="submit" disabled={loading} style={styles.button}>
-              {loading ? 'Signing in...' : 'Login'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+# 5. Login View
+if not st.session_state.logged_in:
+    st.title("💼 Mirage Employee Portal")
+    st.subheader("بوابة موظفي ميراج - تسجيل الدخول")
+    st.write("الرجاء إدخال الرقم القومي (اسم المستخدم) وكلمة المرور.")
 
-  // Calculate Final Salary
-  const baseSalary = Number(user.base_salary) || 0;
-  const bonuses = Number(user.bonuses) || 0;
-  const salaryCuts = Number(user.salary_cuts) || 0;
-  const finalSalary = baseSalary + bonuses - salaryCuts;
+    with st.form("login_form"):
+        emp_id_input = st.text_input("Employee ID (الرقم القومي)")
+        password_input = st.text_input("Password (كلمة المرور)", type="password")
+        submit_btn = st.form_submit_button("تسجيل الدخول / Login")
 
-  // If logged in, show Employee Dashboard / Payslip
-  return (
-    <div style={styles.container}>
-      <div style={styles.dashboardCard}>
-        <div style={styles.headerRow}>
-          <div>
-            <h2 style={styles.welcomeText}>Welcome, {user.full_name}</h2>
-            <p style={styles.subText}>Employee ID: {user.employee_id}</p>
-          </div>
-          <button onClick={handleLogout} style={styles.logoutButton}>Logout</button>
-        </div>
+        if submit_btn:
+            clean_id = emp_id_input.strip()
+            clean_pass = password_input.strip()
+            
+            matching_rows = df[df['Employee ID'] == clean_id]
+            
+            if not matching_rows.empty:
+                stored_pass = str(matching_rows.iloc[0]['Password'])
+                if clean_pass == stored_pass:
+                    st.session_state.logged_in = True
+                    st.session_state.employee = matching_rows.iloc[0].to_dict()
+                    st.rerun()
+                else:
+                    st.error("❌ كلمة المرور غير صحيحة. (Incorrect Password)")
+            else:
+                st.error("❌ رقم الموظف (الرقم القومي) غير موجود. (ID Not Found)")
 
-        <hr style={styles.divider} />
+# 6. Authenticated Employee Dashboard View
+else:
+    emp = st.session_state.employee
+    st.title(f"Welcome, {emp['Full Name']} 👋")
+    st.write(f"**Employee ID (الرقم القومي):** {emp['Employee ID']}")
 
-        <h3 style={styles.sectionTitle}>Monthly Salary & Attendance Breakdown</h3>
+    if st.button("تسجيل الخروج / Logout"):
+        st.session_state.logged_in = False
+        st.session_state.employee = None
+        st.rerun()
 
-        <div style={styles.grid}>
-          <div style={styles.metricCard}>
-            <span style={styles.metricLabel}>Main Salary (الراتب الاساسي)</span>
-            <span style={styles.metricValue}>${baseSalary.toLocaleString()}</span>
-          </div>
-          <div style={styles.metricCard}>
-            <span style={styles.metricLabel}>Days Off (ايام الراحة/الغياب)</span>
-            <span style={styles.metricValue}>{user.days_off || 0} Days</span>
-          </div>
-          <div style={styles.metricCard}>
-            <span style={styles.metricLabel}>Days Late (ايام التأخير)</span>
-            <span style={styles.metricValue}>{user.days_late || 0} Days</span>
-          </div>
-          <div style={styles.metricCard}>
-            <span style={styles.metricLabel}>Bonuses (المكافآت)</span>
-            <span style={{ ...styles.metricValue, color: '#10B981' }}>+${bonuses.toLocaleString()}</span>
-          </div>
-          <div style={styles.metricCard}>
-            <span style={styles.metricLabel}>Salary Cuts (الخصومات)</span>
-            <span style={{ ...styles.metricValue, color: '#EF4444' }}>-${salaryCuts.toLocaleString()}</span>
-          </div>
-        </div>
+    st.markdown("---")
+    st.subheader("📊 تفاصيل الراتب الشهري (Monthly Salary Details)")
 
-        <div style={styles.totalBox}>
-          <span style={styles.totalLabel}>Final Net Salary (صافي الراتب النهائي)</span>
-          <span style={styles.totalValue}>${finalSalary.toLocaleString()}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+    base_salary = float(emp['Base Salary'])
+    
+    # Input fields for attendance, bonuses, and cuts
+    col1, col2 = st.columns(2)
+    with col1:
+        days_off = st.number_input("Days Off (أيام الراحة / الغياب)", min_value=0, value=0, step=1)
+        days_late = st.number_input("Days Late (أيام التأخير)", min_value=0, value=0, step=1)
+    with col2:
+        bonuses = st.number_input("Bonuses (المكافآت)", min_value=0.0, value=0.0, step=50.0)
+        salary_cuts = st.number_input("Salary Cuts (الخصومات)", min_value=0.0, value=0.0, step=50.0)
 
-// Clean professional inline styles
-const styles = {
-  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#F3F4F6', fontFamily: 'Segoe UI, sans-serif', padding: '20px' },
-  card: { backgroundColor: '#FFFFFF', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' },
-  dashboardCard: { backgroundColor: '#FFFFFF', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '100%', maxWidth: '700px' },
-  title: { fontSize: '24px', fontWeight: 'bold', color: '#1F2937', marginBottom: '8px', textAlign: 'center' },
-  subtitle: { fontSize: '14px', color: '#6B7280', marginBottom: '24px', textAlign: 'center' },
-  form: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '14px', fontWeight: '600', color: '#374151' },
-  input: { padding: '10px 14px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '16px', outline: 'none' },
-  button: { backgroundColor: '#2563EB', color: '#FFFFFF', padding: '12px', borderRadius: '8px', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' },
-  error: { backgroundColor: '#FEE2E2', color: '#B91C1C', padding: '10px', borderRadius: '6px', fontSize: '14px', marginBottom: '16px', textAlign: 'center' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  welcomeText: { fontSize: '20px', fontWeight: 'bold', color: '#1F2937' },
-  subText: { fontSize: '13px', color: '#6B7280', marginTop: '2px' },
-  logoutButton: { backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
-  divider: { border: '0', height: '1px', backgroundColor: '#E5E7EB', margin: '20px 0' },
-  sectionTitle: { fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '16px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' },
-  metricCard: { backgroundColor: '#F9FAFB', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', gap: '6px' },
-  metricLabel: { fontSize: '12px', color: '#6B7280', fontWeight: '500' },
-  metricValue: { fontSize: '18px', fontWeight: 'bold', color: '#1F2937' },
-  totalBox: { backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', padding: '20px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: '16px', fontWeight: 'bold', color: '#1E40AF' },
-  totalValue: { fontSize: '24px', fontWeight: 'bold', color: '#1E40AF' }
-};
+    # Net Salary Calculation Formula
+    final_salary = base_salary + bonuses - salary_cuts
+
+    st.markdown("---")
+    
+    # Metric Summary Cards
+    m1, m2, m3 = st.columns(3)
+    m1.metric("الراتب الأساسي (Base Salary)", f"${base_salary:,.2f}")
+    m2.metric("المكافآت والخصومات", f"+${bonuses:,.2f} / -${salary_cuts:,.2f}")
+    m3.metric("صافي الراتب النهائي (Final Net Salary)", f"${final_salary:,.2f}")
