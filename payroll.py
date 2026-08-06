@@ -4,48 +4,83 @@ import streamlit as st
 # Page configuration
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
-st.title("🔐 بوابة تسجيل دخول الموظفين")
+# --- Language Translations Dictionary ---
+translations = {
+    "English": {
+        "title": "🔐 Employee Login Portal",
+        "subtitle": "Please enter your National ID to proceed.",
+        "admin_header": "Admin Control Panel",
+        "upload_label": "Upload Employees Excel File",
+        "upload_success": "Employee data successfully loaded and saved!",
+        "upload_warning": (
+            "⚠️ Employee database not uploaded yet. Please ask the admin to"
+            " upload the Excel file from the sidebar."
+        ),
+        "input_label": "National ID (الرقم القومي):",
+        "login_btn": "Login",
+        "empty_input": "Please enter your National ID.",
+        "welcome": "Welcome, {name}! Successfully logged in.",
+        "error_id": "Incorrect National ID. Please check and try again.",
+        "error_read": "Error reading file: {error}",
+    },
+    "العربية": {
+        "title": "🔐 بوابة تسجيل دخول الموظفين",
+        "subtitle": "الرجاء إدخال الرقم القومي الخاص بك للمتابعة.",
+        "admin_header": "لوحة تحكم المسؤول (Admin)",
+        "upload_label": "رفع ملف الـ Excel للموظفين",
+        "upload_success": "تم تحديث وحفظ بيانات الموظفين بنجاح!",
+        "upload_warning": (
+            "⚠️ لم يتم رفع قاعدة بيانات الموظفين بعد. يرجى من المسؤول رفع ملف الـ"
+            " Excel من القائمة الجانبية."
+        ),
+        "input_label": "الرقم القومي (National ID):",
+        "login_btn": "تسجيل الدخول",
+        "empty_input": "الرجاء إدخال الرقم القومي.",
+        "welcome": "مرحباً، {name}! تم تسجيل الدخول بنجاح.",
+        "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
+        "error_read": "خطأ في قراءة الملف: {error}",
+    },
+}
 
-# Initialize session state for uploaded data if it doesn't exist
+# --- Language Switcher in Sidebar ---
+st.sidebar.title("🌐 Language / اللغة")
+selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
+t = translations[selected_lang]
+
+# Initialize session state for uploaded data
 if "employee_df" not in st.session_state:
   st.session_state.employee_df = None
 
 # --- Admin Section (Sidebar) ---
-st.sidebar.header("لوحة تحكم المسؤول (Admin)")
-uploaded_file = st.sidebar.file_uploader(
-    "رفع ملف الـ Excel للموظفين", type=["xlsx", "xls"]
-)
+st.sidebar.markdown("---")
+st.sidebar.header(t["admin_header"])
+uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
+# Automatically process file as soon as it is uploaded
 if uploaded_file is not None:
   try:
-    # Read the uploaded Excel file
     df = pd.read_excel(uploaded_file)
     df.columns = df.columns.str.strip()
-    # Save into session state so it stays active
     st.session_state.employee_df = df
-    st.sidebar.success("تم تحديث وحفظ بيانات الموظفين بنجاح!")
+    st.sidebar.success(t["upload_success"])
   except Exception as e:
-    st.sidebar.error(f"خطأ في قراءة الملف: {e}")
+    st.sidebar.error(t["error_read"].format(error=e))
 
-# --- Employee Login Section ---
-st.write("الرجاء إدخال الرقم القومي الخاص بك للمتابعة.")
+# --- Main Page Layout ---
+st.title(t["title"])
+st.write(t["subtitle"])
 
 if st.session_state.employee_df is None:
-  st.warning(
-      "⚠️ لم يتم رفع قاعدة بيانات الموظفين بعد. يرجى من المسؤول رفع ملف الـ Excel"
-      " من القائمة الجانبية."
-  )
+  st.warning(t["upload_warning"])
 else:
   df = st.session_state.employee_df
 
   # Input field for National ID
-  national_id_input = st.text_input(
-      "الرقم القومي (National ID):", type="password"
-  )
+  national_id_input = st.text_input(t["input_label"], type="password")
 
-  if st.button("تسجيل الدخول"):
+  if st.button(t["login_btn"]):
     if not national_id_input:
-      st.warning("الرجاء إدخال الرقم القومي.")
+      st.warning(t["empty_input"])
     else:
       # Match input against the 'الرقم القومي' column
       matched = df[
@@ -55,6 +90,6 @@ else:
 
       if not matched.empty:
         employee_name = matched.iloc[0]["الاسم"]
-        st.success(f"مرحباً، {employee_name}! تم تسجيل الدخول بنجاح.")
+        st.success(t["welcome"].format(name=employee_name))
       else:
-        st.error("الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.")
+        st.error(t["error_id"])
