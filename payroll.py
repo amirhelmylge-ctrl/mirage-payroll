@@ -11,6 +11,10 @@ translations = {
         "title": "🔐 Employee Login Portal",
         "subtitle": "Please enter your National ID to proceed.",
         "admin_header": "Admin Control Panel",
+        "admin_pass_label": "Enter Admin Password:",
+        "admin_pass_btn": "Unlock Admin Panel",
+        "admin_access_denied": "Incorrect Admin Password.",
+        "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
         "upload_label": "Upload Employees Excel File",
         "remove_btn": "Remove Excel Sheet (Logout Everyone)",
         "upload_success": (
@@ -38,6 +42,10 @@ translations = {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
         "subtitle": "الرجاء إدخال الرقم القومي الخاص بك للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
+        "admin_pass_label": "أدخل كلمة مرور المسؤول:",
+        "admin_pass_btn": "فتح لوحة المسؤول",
+        "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
+        "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
         "upload_label": "رفع ملف الـ Excel للموظفين",
         "remove_btn": "حذف ملف الـ Excel (تسجيل خروج الجميع)",
         "upload_success": (
@@ -69,41 +77,61 @@ selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "Engl
 t = translations[selected_lang]
 
 SHARED_FILE = "shared_payroll.xlsx"
+ADMIN_PASSWORD = (
+    "admin123"  # You can change this secret password to whatever you want
+)
 
-# Initialize local browser session states
+# Initialize session states
 if "logged_in_user" not in st.session_state:
   st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
   st.session_state.logged_in_id = None
 if "employee_row_data" not in st.session_state:
   st.session_state.employee_row_data = None
+if "admin_authenticated" not in st.session_state:
+  st.session_state.admin_authenticated = False
 
-# --- Admin Section (Sidebar) ---
+# --- Admin Section (Sidebar with Password Protection) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
-uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
+if not st.session_state.admin_authenticated:
+  admin_pass_input = st.sidebar.text_input(
+      t["admin_pass_label"], type="password"
+  )
+  if st.sidebar.button(t["admin_pass_btn"]):
+    if admin_pass_input == ADMIN_PASSWORD:
+      st.session_state.admin_authenticated = True
+      st.sidebar.success(t["admin_panel_unlocked"])
+      st.rerun()
+    else:
+      st.sidebar.error(t["admin_access_denied"])
+else:
+  # Once unlocked, show the upload and delete controls
+  uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
-if uploaded_file is not None:
-  try:
-    # Save the uploaded file globally to the server backend storage
-    with open(SHARED_FILE, "wb") as f:
-      f.write(uploaded_file.getbuffer())
-    st.sidebar.success(t["upload_success"])
-  except Exception as e:
-    st.sidebar.error(t["error_read"].format(error=e))
+  if uploaded_file is not None:
+    try:
+      with open(SHARED_FILE, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+      st.sidebar.success(t["upload_success"])
+    except Exception as e:
+      st.sidebar.error(t["error_read"].format(error=e))
 
-# Option for admin to clear/remove the file from any device they are on
-if os.path.exists(SHARED_FILE):
-  if st.sidebar.button(t["remove_btn"]):
-    os.remove(SHARED_FILE)
-    st.sidebar.success(t["remove_success"])
+  if os.path.exists(SHARED_FILE):
+    if st.sidebar.button(t["remove_btn"]):
+      os.remove(SHARED_FILE)
+      st.sidebar.success(t["remove_success"])
+      st.rerun()
+
+  if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
+    st.session_state.admin_authenticated = False
     st.rerun()
 
 # Check globally if the shared file exists on the server backend
 file_exists = os.path.exists(SHARED_FILE)
 
-# If the file was deleted globally by the admin, force logout any user currently looking at a dashboard
+# If the file was deleted globally by the admin, force logout any active user session
 if not file_exists and st.session_state.logged_in_user is not None:
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
@@ -126,7 +154,6 @@ if st.session_state.logged_in_user:
   if st.session_state.employee_row_data is not None:
     row_data = st.session_state.employee_row_data
 
-    # Categorize columns into Earnings, Deductions, and Others automatically
     earnings_cols = {}
     deductions_cols = {}
     other_cols = {}
