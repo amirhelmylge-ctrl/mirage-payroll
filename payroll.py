@@ -419,7 +419,9 @@ else:
                             st.error(t["error_id"])
             else:
                 national_id_input = st.session_state.checked_id
-                matched = df[df["الرقم القومي"].astype(str).str.strip() == str(national_id_input).strip()]
+                # Reload fresh from shared file to ensure password state is current across devices
+                df_current = load_excel_df()
+                matched = df_current[df_current["الرقم القومي"].astype(str).str.strip() == str(national_id_input).strip()]
 
                 if not matched.empty:
                     idx = matched.index[0]
@@ -444,15 +446,15 @@ else:
                             elif new_pass != confirm_pass:
                                 st.error(t["pass_mismatch"])
                             else:
-                                existing_passes = df["Password"].astype(str).str.strip().tolist()
+                                existing_passes = df_current["Password"].astype(str).str.strip().tolist()
                                 if new_pass.strip() in existing_passes:
                                     st.error(t["pass_taken"])
                                 else:
-                                    df.at[idx, "Password"] = new_pass.strip()
-                                    save_excel_safely(df)
+                                    df_current.at[idx, "Password"] = new_pass.strip()
+                                    save_excel_safely(df_current)
                                     st.session_state.logged_in_user = emp_name
                                     st.session_state.logged_in_id = national_id_input
-                                    st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                                    st.session_state.employee_row_data = df_current.loc[idx].to_dict()
                                     st.session_state.checked_id = None
                                     st.success(t["register_success"])
                                     st.rerun()
