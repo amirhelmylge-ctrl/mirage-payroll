@@ -16,7 +16,7 @@ translations = {
         "admin_pass_btn": "Unlock Admin Panel",
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
-        "upload_label": "Upload Employees Excel File",
+        "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
         "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
         "refresh_btn": "🔄 Refresh Data / Check Updates",
@@ -68,7 +68,7 @@ translations = {
         "admin_pass_btn": "فتح لوحة المسؤول",
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
-        "upload_label": "رفع ملف الـ Excel للموظفين",
+        "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
         "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
         "refresh_btn": "🔄 تحديث البيانات / التحقق من التحديثات",
@@ -145,13 +145,22 @@ if not is_database_active():
   st.session_state.checked_id = None
 
 
+# --- Helper to Read Excel Safely (Supports both .xlsx and .xls) ---
+def read_excel_file(file_path_or_buffer):
+  # Determine engine based on extension or fallback
+  try:
+    return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
+  except Exception:
+    return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
+
+
 # --- High-Speed Cached DataFrame Loader ---
 @st.cache_data(ttl=2)
 def load_excel_cached(file_mtime):
   if not os.path.exists(SHARED_FILE):
     return None
   try:
-    df = pd.read_excel(SHARED_FILE, dtype=str)
+    df = read_excel_file(SHARED_FILE)
     df.columns = df.columns.str.strip()
 
     if "Password" not in df.columns:
@@ -229,16 +238,18 @@ if not st.session_state.admin_authenticated:
     else:
       st.sidebar.error(t["admin_access_denied"])
 else:
-  uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
+  uploaded_file = st.sidebar.file_uploader(
+      t["upload_label"], type=["xlsx", "xls"]
+  )
 
   if uploaded_file is not None:
     try:
-      df_upload = pd.read_excel(uploaded_file, dtype=str)
+      df_upload = read_excel_file(uploaded_file)
       df_upload.columns = df_upload.columns.str.strip()
 
       existing_passwords = {}
       if os.path.exists(SHARED_FILE):
-        df_old = pd.read_excel(SHARED_FILE, dtype=str)
+        df_old = read_excel_file(SHARED_FILE)
         df_old.columns = df_old.columns.str.strip()
         if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
           for _, row in df_old.iterrows():
@@ -326,7 +337,6 @@ with col_refresh:
   if st.button(t["refresh_btn"]):
     st.cache_data.clear()
     if st.session_state.logged_in_id and is_database_active():
-      # Keep logged-in user data updated instantly if data changed
       df_refresh = load_excel_df()
       if df_refresh is not None:
         matched_ref = df_refresh[
