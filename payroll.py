@@ -131,22 +131,41 @@ if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
 if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
+if "db_mtime" not in st.session_state:
+  st.session_state.db_mtime = 0
 
 
-# --- Strict Database Validation ---
+# --- Helper Functions ---
 def is_database_active():
   return os.path.exists(SHARED_FILE)
 
 
-# FORCE PURGE session state immediately if database file doesn't exist
+def get_file_mtime():
+  if os.path.exists(SHARED_FILE):
+    return os.path.getmtime(SHARED_FILE)
+  return 0
+
+
+# --- STRICT SECURITY GUARD: File Integrity & State Sync ---
+current_file_mtime = get_file_mtime()
+
 if not is_database_active():
+  # Database is missing entirely - purge all active sessions immediately
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
+  st.session_state.db_mtime = 0
+elif st.session_state.db_mtime != current_file_mtime:
+  # Database file was updated, replaced, or modified on disk - invalidate sessions
+  st.session_state.logged_in_user = None
+  st.session_state.logged_in_id = None
+  st.session_state.employee_row_data = None
+  st.session_state.checked_id = None
+  st.session_state.db_mtime = current_file_mtime
+  st.cache_data.clear()
 
 
-# --- Helper to Read Excel Safely (Supports both .xlsx and .xls) ---
 def read_excel_file(file_path_or_buffer):
   try:
     return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
@@ -154,7 +173,6 @@ def read_excel_file(file_path_or_buffer):
     return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
 
 
-# --- High-Speed Cached DataFrame Loader ---
 @st.cache_data(ttl=2)
 def load_excel_cached(file_mtime):
   if not os.path.exists(SHARED_FILE):
@@ -189,12 +207,6 @@ def load_excel_cached(file_mtime):
     return None
 
 
-def get_file_mtime():
-  if os.path.exists(SHARED_FILE):
-    return os.path.getmtime(SHARED_FILE)
-  return 0
-
-
 def load_excel_df():
   if not is_database_active():
     return None
@@ -220,6 +232,7 @@ def save_excel_safely(df):
 
   df.to_excel(SHARED_FILE, index=False)
   st.cache_data.clear()
+  st.session_state.db_mtime = get_file_mtime()
 
 
 # --- Admin Section (Sidebar with Password Protection) ---
@@ -265,6 +278,11 @@ else:
       df_upload["Password"] = pass_col
 
       save_excel_safely(df_upload)
+      # Forcefully logout everyone upon new file upload
+      st.session_state.logged_in_user = None
+      st.session_state.logged_in_id = None
+      st.session_state.employee_row_data = None
+      st.session_state.checked_id = None
       st.sidebar.success(t["upload_success"])
       st.rerun()
     except Exception as e:
@@ -320,6 +338,7 @@ else:
       st.session_state.logged_in_id = None
       st.session_state.employee_row_data = None
       st.session_state.checked_id = None
+      st.session_state.db_mtime = 0
       st.cache_data.clear()
       st.sidebar.success(t["remove_success"])
       st.rerun()
@@ -333,7 +352,7 @@ col_title, col_refresh = st.columns([4, 1])
 with col_title:
   st.title(t["title"])
 with col_refresh:
-  st.write("")  # spacing
+  st.write("")
   if st.button(t["refresh_btn"]):
     st.cache_data.clear()
     if is_database_active() and st.session_state.logged_in_id:
@@ -348,17 +367,35 @@ with col_refresh:
     st.success(t["refresh_success"])
     st.rerun()
 
-# --- ABSOLUTE BULLETPROOF SECURITY GATEKEEPER ---
+# --- SECURE RENDER CONTROLLER ---
 if not is_database_active():
-  # Forcefully clear session attributes to completely lock the interface
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
-
   st.warning(t["upload_warning"])
 
-elif st.session_state.logged_in_user:
+elif st.session_state.logged_in_user and st.session_state.logged_in_id:
+  # Double check that the logged-in user's ID still actually exists in the active file
+  df_check = load_excel_df()
+  valid_session = False
+  if df_check is not None:
+    verify_match = df_check[
+        df_check["الرقم القومي"].astype(str).str.strip()
+        == str(st.session_state.logged_in_id).strip()
+    ]
+    if not verify_match.empty:
+      valid_session = True
+      st.session_state.employee_row_data = verify_match.iloc[0].to_dict()
+
+  if not valid_session:
+    # Terminate invalid session instantly
+    st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
+    st.session_state.employee_row_data = None
+    st.session_state.checked_id = None
+    st.rerun()
+
   st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
 
   st.markdown(f"### 📋 {t['dashboard_title']}")
@@ -490,4 +527,3 @@ else:
 
   except Exception as e:
     st.error(t["error_read"].format(error=e))
-      
