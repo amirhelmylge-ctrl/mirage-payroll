@@ -6,19 +6,11 @@ import streamlit as st
 # Page configuration
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
+# --- GLOBAL SYSTEM FILES ---
+# These files dictate the state for ALL users accessing the app globally.
 SHARED_FILE = "shared_payroll.xlsx"
+LOCK_FILE = "portal_locked.flag"
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
-
-# --- ABSOLUTE INITIALIZATION & SECURITY WIPE ---
-if "admin_portal_unlocked_master" not in st.session_state:
-  st.session_state.admin_portal_unlocked_master = True  # Default open if file exists
-
-# If file does not exist, completely purge all user sessions immediately
-if not os.path.exists(SHARED_FILE):
-  st.session_state.logged_in_user = None
-  st.session_state.logged_in_id = None
-  st.session_state.employee_row_data = None
-  st.session_state.checked_id = None
 
 # --- Language Translations Dictionary ---
 translations = {
@@ -41,12 +33,13 @@ translations = {
         "refresh_btn": "🔄 Refresh Data / Check Updates",
         "refresh_success": "Data refreshed successfully!",
         "upload_success": (
-            "Excel uploaded successfully! Passwords safely preserved."
+            "Excel uploaded successfully! Portal unlocked and passwords"
+            " preserved."
         ),
         "remove_success": "Excel file removed. Portal locked and everyone logged out.",
         "upload_warning": (
-            "⚠️ PORTAL LOCKED: Employee database has not been uploaded by the"
-            " admin yet. Access is restricted."
+            "⚠️ PORTAL LOCKED: Please upload the employee database Excel file"
+            " to enable logins."
         ),
         "input_label": "National ID (الرقم القومي):",
         "check_id_btn": "Next / Verify ID",
@@ -97,12 +90,12 @@ translations = {
         "refresh_btn": "🔄 تحديث البيانات / التحقق من التحديثات",
         "refresh_success": "تم تحديث البيانات بنجاح!",
         "upload_success": (
-            "تم رفع الملف بنجاح! تم الحفاظ على كلمات المرور للموظفين."
+            "تم رفع الملف بنجاح! تم فتح البوابة والحفاظ على كلمات المرور للموظفين."
         ),
         "remove_success": "تم حذف الملف وإغلاق البوابة وتسجيل خروج الجميع.",
         "upload_warning": (
-            "⚠️ البوابة مغلقة: لم يتم رفع قاعدة بيانات الموظفين من قبل المسؤول"
-            " بعد."
+            "⚠️ البوابة مغلقة: يرجى رفع ملف قاعدة بيانات الموظفين لتفعيل"
+            " الدخول."
         ),
         "input_label": "الرقم القومي (National ID):",
         "check_id_btn": "التالي / التحقق من الرقم",
@@ -140,386 +133,361 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-# Initialize remaining session states safely
+# --- Initialize User-Specific Browser Session States ---
 if "logged_in_user" not in st.session_state:
-  st.session_state.logged_in_user = None
+    st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
-  st.session_state.logged_in_id = None
+    st.session_state.logged_in_id = None
 if "employee_row_data" not in st.session_state:
-  st.session_state.employee_row_data = None
+    st.session_state.employee_row_data = None
 if "admin_authenticated" not in st.session_state:
-  st.session_state.admin_authenticated = False
+    st.session_state.admin_authenticated = False
 if "checked_id" not in st.session_state:
-  st.session_state.checked_id = None
+    st.session_state.checked_id = None
 
+# Wipe user session if they somehow have stale data but portal is globally locked
+if not os.path.exists(SHARED_FILE) or os.path.exists(LOCK_FILE):
+    st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
+    st.session_state.employee_row_data = None
+    st.session_state.checked_id = None
 
+# --- Helper Functions ---
 def read_excel_file(file_path_or_buffer):
-  try:
-    return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
-  except Exception:
-    return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
-
+    try:
+        return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
+    except Exception:
+        return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
 
 def load_excel_df():
-  if not os.path.exists(SHARED_FILE):
-    return None
-  try:
-    df = read_excel_file(SHARED_FILE)
-    df.columns = df.columns.str.strip()
+    if not os.path.exists(SHARED_FILE):
+        return None
+    try:
+        df = read_excel_file(SHARED_FILE)
+        df.columns = df.columns.str.strip()
 
-    if "Password" not in df.columns:
-      df["Password"] = ""
-    else:
-      df["Password"] = (
-          df["Password"]
-          .fillna("")
-          .astype(str)
-          .str.replace(r"\.0$", "", regex=True)
-          .str.strip()
-      )
-      df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+        if "Password" not in df.columns:
+            df["Password"] = ""
+        else:
+            df["Password"] = (
+                df["Password"]
+                .fillna("")
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.strip()
+            )
+            df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
-    if "الرقم القومي" in df.columns:
-      df["الرقم القومي"] = (
-          df["الرقم القومي"]
-          .fillna("")
-          .astype(str)
-          .str.replace(r"\.0$", "", regex=True)
-          .str.strip()
-      )
-
-    return df
-  except Exception:
-    return None
-
+        if "الرقم القومي" in df.columns:
+            df["الرقم القومي"] = (
+                df["الرقم القومي"]
+                .fillna("")
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.strip()
+            )
+        return df
+    except Exception:
+        return None
 
 def save_excel_safely(df):
-  if "الرقم القومي" in df.columns:
-    df["الرقم القومي"] = (
-        df["الرقم القومي"]
-        .astype(str)
-        .str.replace(r"\.0$", "", regex=True)
-        .str.strip()
-    )
-  if "Password" in df.columns:
-    df["Password"] = (
-        df["Password"]
-        .astype(str)
-        .str.replace(r"\.0$", "", regex=True)
-        .str.strip()
-    )
-    df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+    if "الرقم القومي" in df.columns:
+        df["الرقم القومي"] = (
+            df["الرقم القومي"]
+            .astype(str)
+            .str.replace(r"\.0$", "", regex=True)
+            .str.strip()
+        )
+    if "Password" in df.columns:
+        df["Password"] = (
+            df["Password"]
+            .astype(str)
+            .str.replace(r"\.0$", "", regex=True)
+            .str.strip()
+        )
+        df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
-  df.to_excel(SHARED_FILE, index=False)
-  st.cache_data.clear()
+    df.to_excel(SHARED_FILE, index=False)
+    st.cache_data.clear()
 
 
-# --- Admin Section (Sidebar with Password Protection) ---
+# --- Admin Section (Sidebar) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
 if not st.session_state.admin_authenticated:
-  admin_pass_input = st.sidebar.text_input(
-      t["admin_pass_label"], type="password"
-  )
-  if st.sidebar.button(t["admin_pass_btn"]):
-    if admin_pass_input == ADMIN_PASSWORD:
-      st.session_state.admin_authenticated = True
-      st.sidebar.success(t["admin_panel_unlocked"])
-      st.rerun()
-    else:
-      st.sidebar.error(t["admin_access_denied"])
+    admin_pass_input = st.sidebar.text_input(t["admin_pass_label"], type="password")
+    if st.sidebar.button(t["admin_pass_btn"]):
+        if admin_pass_input == ADMIN_PASSWORD:
+            st.session_state.admin_authenticated = True
+            st.sidebar.success(t["admin_panel_unlocked"])
+            st.rerun()
+        else:
+            st.sidebar.error(t["admin_access_denied"])
 else:
-  # Master Switch to instantly lock/unlock employee logins from admin side
-  master_toggle = st.sidebar.checkbox(
-      t["portal_master_toggle"],
-      value=st.session_state.admin_portal_unlocked_master,
-  )
-  if master_toggle != st.session_state.admin_portal_unlocked_master:
-    st.session_state.admin_portal_unlocked_master = master_toggle
-    if not master_toggle:
-      # Instantly logout everyone if master toggle is turned off
-      st.session_state.logged_in_user = None
-      st.session_state.logged_in_id = None
-      st.session_state.employee_row_data = None
-      st.session_state.checked_id = None
-    st.rerun()
+    # GLOBAL MASTER SWITCH: Creates or removes a physical lock file
+    is_unlocked_globally = not os.path.exists(LOCK_FILE)
+    master_toggle = st.sidebar.checkbox(
+        t["portal_master_toggle"],
+        value=is_unlocked_globally,
+    )
+    
+    if master_toggle != is_unlocked_globally:
+        if master_toggle:
+            # Unlock it (remove file)
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
+        else:
+            # Lock it (create file)
+            with open(LOCK_FILE, "w") as f:
+                f.write("LOCKED")
+        st.rerun()
 
-  uploaded_file = st.sidebar.file_uploader(
-      t["upload_label"], type=["xlsx", "xls"]
-  )
+    uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
-  if uploaded_file is not None:
-    try:
-      df_upload = read_excel_file(uploaded_file)
-      df_upload.columns = df_upload.columns.str.strip()
+    if uploaded_file is not None:
+        try:
+            df_upload = read_excel_file(uploaded_file)
+            df_upload.columns = df_upload.columns.str.strip()
 
-      existing_passwords = {}
-      if os.path.exists(SHARED_FILE):
-        df_old = read_excel_file(SHARED_FILE)
-        df_old.columns = df_old.columns.str.strip()
-        if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
-          for _, row in df_old.iterrows():
-            nid = str(row["الرقم القومي"]).strip().replace(".0", "")
-            pwd = str(row["Password"]).strip()
-            if pwd and pwd.lower() not in ["nan", "none", ""]:
-              existing_passwords[nid] = pwd
+            existing_passwords = {}
+            if os.path.exists(SHARED_FILE):
+                df_old = read_excel_file(SHARED_FILE)
+                df_old.columns = df_old.columns.str.strip()
+                if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
+                    for _, row in df_old.iterrows():
+                        nid = str(row["الرقم القومي"]).strip().replace(".0", "")
+                        pwd = str(row["Password"]).strip()
+                        if pwd and pwd.lower() not in ["nan", "none", ""]:
+                            existing_passwords[nid] = pwd
 
-      pass_col = []
-      for _, row in df_upload.iterrows():
-        nid = str(row.get("الرقم القومي", "")).strip().replace(".0", "")
-        pass_col.append(existing_passwords.get(nid, ""))
-      df_upload["Password"] = pass_col
+            pass_col = []
+            for _, row in df_upload.iterrows():
+                nid = str(row.get("الرقم القومي", "")).strip().replace(".0", "")
+                pass_col.append(existing_passwords.get(nid, ""))
+            df_upload["Password"] = pass_col
 
-      save_excel_safely(df_upload)
-      st.sidebar.success(t["upload_success"])
-      st.rerun()
-    except Exception as e:
-      st.sidebar.error(t["error_read"].format(error=e))
+            save_excel_safely(df_upload)
+            
+            # Automatically unlock the portal when a new sheet is uploaded
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
 
-  if os.path.exists(SHARED_FILE):
-    st.sidebar.markdown("---")
-    st.sidebar.subheader(t["admin_employees_header"])
-    df_admin = load_excel_df()
-    if df_admin is not None:
-      for idx, row in df_admin.iterrows():
-        name = row.get("الاسم", f"Employee {idx}")
-        nid = str(row.get("الرقم القومي", "")).strip()
-        current_pwd = str(row.get("Password", "")).strip()
-        has_pass = current_pwd not in ["", "nan", "None"]
-        status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
+            st.sidebar.success(t["upload_success"])
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(t["error_read"].format(error=e))
 
-        with st.sidebar.expander(f"{name} ({status_text})"):
-          st.write(f"ID: `{nid}`")
-          if has_pass:
-            if st.button(t["reset_pass_btn"], key=f"reset_{nid}_{idx}"):
-              df_admin.at[idx, "Password"] = ""
-              save_excel_safely(df_admin)
-              st.success(t["reset_success"].format(name=name))
-              st.rerun()
-          else:
-            st.info("No password set yet.")
+    if os.path.exists(SHARED_FILE):
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(t["admin_employees_header"])
+        df_admin = load_excel_df()
+        if df_admin is not None:
+            for idx, row in df_admin.iterrows():
+                name = row.get("الاسم", f"Employee {idx}")
+                nid = str(row.get("الرقم القومي", "")).strip()
+                current_pwd = str(row.get("Password", "")).strip()
+                has_pass = current_pwd not in ["", "nan", "None"]
+                status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
 
-      st.sidebar.markdown("---")
-      df_export = df_admin.copy()
-      if "Password" in df_export.columns:
-        df_export = df_export.drop(columns=["Password"])
+                with st.sidebar.expander(f"{name} ({status_text})"):
+                    st.write(f"ID: `{nid}`")
+                    if has_pass:
+                        if st.button(t["reset_pass_btn"], key=f"reset_{nid}_{idx}"):
+                            df_admin.at[idx, "Password"] = ""
+                            save_excel_safely(df_admin)
+                            st.success(t["reset_success"].format(name=name))
+                            st.rerun()
+                    else:
+                        st.info("No password set yet.")
 
-      output = io.BytesIO()
-      with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_export.to_excel(writer, index=False)
-      excel_bytes = output.getvalue()
+            st.sidebar.markdown("---")
+            df_export = df_admin.copy()
+            if "Password" in df_export.columns:
+                df_export = df_export.drop(columns=["Password"])
 
-      st.sidebar.download_button(
-          label=t["download_btn"],
-          data=excel_bytes,
-          file_name="employee_payroll_database.xlsx",
-          mime=(
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          ),
-      )
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df_export.to_excel(writer, index=False)
+            excel_bytes = output.getvalue()
 
-    st.sidebar.markdown("---")
-    if st.sidebar.button(t["remove_btn"]):
-      if os.path.exists(SHARED_FILE):
-        os.remove(SHARED_FILE)
-      st.session_state.logged_in_user = None
-      st.session_state.logged_in_id = None
-      st.session_state.employee_row_data = None
-      st.session_state.checked_id = None
-      st.session_state.admin_portal_unlocked_master = False
-      st.cache_data.clear()
-      st.rerun()
+            st.sidebar.download_button(
+                label=t["download_btn"],
+                data=excel_bytes,
+                file_name="employee_payroll_database.xlsx",
+                mime=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            )
 
-  if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
-    st.session_state.admin_authenticated = False
-    st.rerun()
+        st.sidebar.markdown("---")
+        if st.sidebar.button(t["remove_btn"]):
+            if os.path.exists(SHARED_FILE):
+                os.remove(SHARED_FILE)
+            st.cache_data.clear()
+            st.rerun()
+
+    if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
+        st.session_state.admin_authenticated = False
+        st.rerun()
+
 
 # --- Main Page Layout ---
 col_title, col_refresh = st.columns([4, 1])
 with col_title:
-  st.title(t["title"])
+    st.title(t["title"])
 with col_refresh:
-  st.write("")
-  if st.button(t["refresh_btn"]):
-    st.cache_data.clear()
-    if os.path.exists(SHARED_FILE) and st.session_state.get(
-        "logged_in_id"
-    ):
-      df_refresh = load_excel_df()
-      if df_refresh is not None:
-        matched_ref = df_refresh[
-            df_refresh["الرقم القومي"].astype(str).str.strip()
-            == str(st.session_state.logged_in_id).strip()
-        ]
-        if not matched_ref.empty:
-          st.session_state.employee_row_data = matched_ref.iloc[0].to_dict()
-    st.success(t["refresh_success"])
-    st.rerun()
+    st.write("")
+    if st.button(t["refresh_btn"]):
+        st.cache_data.clear()
+        if os.path.exists(SHARED_FILE) and st.session_state.get("logged_in_id"):
+            df_refresh = load_excel_df()
+            if df_refresh is not None:
+                matched_ref = df_refresh[
+                    df_refresh["الرقم القومي"].astype(str).str.strip()
+                    == str(st.session_state.logged_in_id).strip()
+                ]
+                if not matched_ref.empty:
+                    st.session_state.employee_row_data = matched_ref.iloc[0].to_dict()
+        st.success(t["refresh_success"])
+        st.rerun()
 
-# --- ABSOLUTE STRICT MASTER GATEKEEPER & SESSION WIPE ---
-if not os.path.exists(SHARED_FILE) or not st.session_state.get(
-    "admin_portal_unlocked_master", True
-):
-  # Force wipe all user session tokens instantly if file is missing or portal is locked
-  st.session_state.logged_in_user = None
-  st.session_state.logged_in_id = None
-  st.session_state.employee_row_data = None
-  st.session_state.checked_id = None
+# --- ABSOLUTE GLOBAL ACCESS CONTROL ---
+# 1. Does the excel file exist on the server?
+is_file_uploaded = os.path.exists(SHARED_FILE)
+# 2. Did the admin explicitly lock the portal?
+is_portal_locked = os.path.exists(LOCK_FILE)
 
-  if not os.path.exists(SHARED_FILE):
+if not is_file_uploaded:
+    # HARD STOP: No file, no UI.
     st.warning(t["upload_warning"])
-  else:
+    st.stop() # Prevents any further rendering below this line
+
+elif is_portal_locked:
+    # HARD STOP: Admin flipped the switch to lock.
     st.warning(t["portal_locked_master_warning"])
+    st.stop() # Prevents any further rendering below this line
 
-elif st.session_state.get("logged_in_user"):
-  # Verify user still exists in file
-  df_verify = load_excel_df()
-  user_exists = False
-  if df_verify is not None:
-    v_match = df_verify[
-        df_verify["الرقم القومي"].astype(str).str.strip()
-        == str(st.session_state.get("logged_in_id")).strip()
-    ]
-    if not v_match.empty:
-      user_exists = True
-      st.session_state.employee_row_data = v_match.iloc[0].to_dict()
+# --- MAIN EMPLOYEE UI (Only reached if File Exists AND Portal is Unlocked) ---
+if st.session_state.get("logged_in_user"):
+    df_verify = load_excel_df()
+    user_exists = False
+    if df_verify is not None:
+        v_match = df_verify[
+            df_verify["الرقم القومي"].astype(str).str.strip()
+            == str(st.session_state.get("logged_in_id")).strip()
+        ]
+        if not v_match.empty:
+            user_exists = True
+            st.session_state.employee_row_data = v_match.iloc[0].to_dict()
 
-  if not user_exists:
-    st.session_state.logged_in_user = None
-    st.session_state.logged_in_id = None
-    st.session_state.employee_row_data = None
-    st.session_state.checked_id = None
-    st.rerun()
+    if not user_exists:
+        st.session_state.logged_in_user = None
+        st.session_state.logged_in_id = None
+        st.session_state.employee_row_data = None
+        st.session_state.checked_id = None
+        st.rerun()
 
-  st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
+    st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
 
-  st.markdown(f"### 📋 {t['dashboard_title']}")
-  st.info(
-      f"**{t['id_display']}**"
-      f" `{str(st.session_state.get('logged_in_id')).strip()}`"
-  )
+    st.markdown(f"### 📋 {t['dashboard_title']}")
+    st.info(f"**{t['id_display']}** `{str(st.session_state.get('logged_in_id')).strip()}`")
 
-  if st.session_state.get("employee_row_data") is not None:
-    row_data = st.session_state.employee_row_data
+    if st.session_state.get("employee_row_data") is not None:
+        row_data = st.session_state.employee_row_data
+        table_data = []
+        for col_name, val in row_data.items():
+            if str(col_name).strip().lower() in ["password", "كلمة المرور"]:
+                continue
+            display_val = val
+            if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
+                display_val = 0
+            table_data.append({t["table_col_key"]: str(col_name), t["table_col_val"]: display_val})
 
-    table_data = []
-    for col_name, val in row_data.items():
-      if str(col_name).strip().lower() in ["password", "كلمة المرور"]:
-        continue
+        df_display = pd.DataFrame(table_data)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-      display_val = val
-      if pd.isna(val) or str(val).strip() == "" or str(val).lower() == "nan":
-        display_val = 0
-      table_data.append(
-          {t["table_col_key"]: str(col_name), t["table_col_val"]: display_val}
-      )
-
-    df_display = pd.DataFrame(table_data)
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-  st.markdown("---")
-  if st.button(t["logout_btn"]):
-    st.session_state.logged_in_user = None
-    st.session_state.logged_in_id = None
-    st.session_state.employee_row_data = None
-    st.session_state.checked_id = None
-    st.rerun()
+    st.markdown("---")
+    if st.button(t["logout_btn"]):
+        st.session_state.logged_in_user = None
+        st.session_state.logged_in_id = None
+        st.session_state.employee_row_data = None
+        st.session_state.checked_id = None
+        st.rerun()
 
 else:
-  st.write(t["subtitle"])
+    # --- RENDER LOGIN SCREEN ---
+    st.write(t["subtitle"])
+    try:
+        df = load_excel_df()
+        if df is None:
+            st.error(t["error_read"].format(error="Could not load data."))
+        else:
+            if st.session_state.get("checked_id") is None:
+                with st.form(key="id_verification_form"):
+                    national_id_input = st.text_input(t["input_label"])
+                    submit_id = st.form_submit_button(t["check_id_btn"])
 
-  try:
-    df = load_excel_df()
-    if df is None:
-      st.warning(t["upload_warning"])
-    else:
-      if st.session_state.get("checked_id") is None:
-        with st.form(key="id_verification_form"):
-          national_id_input = st.text_input(t["input_label"])
-          submit_id = st.form_submit_button(t["check_id_btn"])
-
-        if submit_id:
-          if not national_id_input.strip():
-            st.warning(t["empty_input"])
-          else:
-            clean_input_id = (
-                national_id_input.strip().replace(".0", "").replace("\t", "")
-            )
-            matched = df[
-                df["الرقم القومي"].astype(str).str.strip() == clean_input_id
-            ]
-            if not matched.empty:
-              st.session_state.checked_id = clean_input_id
-              st.rerun()
+                if submit_id:
+                    if not national_id_input.strip():
+                        st.warning(t["empty_input"])
+                    else:
+                        clean_input_id = national_id_input.strip().replace(".0", "").replace("\t", "")
+                        matched = df[df["الرقم القومي"].astype(str).str.strip() == clean_input_id]
+                        if not matched.empty:
+                            st.session_state.checked_id = clean_input_id
+                            st.rerun()
+                        else:
+                            st.error(t["error_id"])
             else:
-              st.error(t["error_id"])
-      else:
-        national_id_input = st.session_state.checked_id
-        matched = df[
-            df["الرقم القومي"].astype(str).str.strip()
-            == str(national_id_input).strip()
-        ]
+                national_id_input = st.session_state.checked_id
+                matched = df[df["الرقم القومي"].astype(str).str.strip() == str(national_id_input).strip()]
 
-        if not matched.empty:
-          idx = matched.index[0]
-          current_pass = str(matched.loc[idx, "Password"]).strip()
-          emp_name = matched.loc[idx, "الاسم"]
+                if not matched.empty:
+                    idx = matched.index[0]
+                    current_pass = str(matched.loc[idx, "Password"]).strip()
+                    emp_name = matched.loc[idx, "الاسم"]
 
-          st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
+                    st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
 
-          if st.button(t["back_btn"]):
-            st.session_state.checked_id = None
-            st.rerun()
+                    if st.button(t["back_btn"]):
+                        st.session_state.checked_id = None
+                        st.rerun()
 
-          if current_pass == "" or current_pass.lower() == "nan":
-            st.info(
-                "✨ First time here? Please create a secure, unique password"
-                " for your account."
-            )
-            new_pass = st.text_input(
-                t["new_password_label"], type="password", key="new_p"
-            )
-            confirm_pass = st.text_input(
-                t["confirm_password_label"], type="password", key="conf_p"
-            )
+                    if current_pass == "" or current_pass.lower() == "nan":
+                        st.info("✨ First time here? Please create a secure, unique password for your account.")
+                        new_pass = st.text_input(t["new_password_label"], type="password", key="new_p")
+                        confirm_pass = st.text_input(t["confirm_password_label"], type="password", key="conf_p")
 
-            if st.button(t["register_btn"]):
-              if not new_pass or not confirm_pass:
-                st.warning(t["empty_input"])
-              elif new_pass != confirm_pass:
-                st.error(t["pass_mismatch"])
-              else:
-                existing_passes = (
-                    df["Password"].astype(str).str.strip().tolist()
-                )
-                if new_pass.strip() in existing_passes:
-                  st.error(t["pass_taken"])
-                else:
-                  df.at[idx, "Password"] = new_pass.strip()
-                  save_excel_safely(df)
-                  st.session_state.logged_in_user = emp_name
-                  st.session_state.logged_in_id = national_id_input
-                  st.session_state.employee_row_data = matched.loc[idx].to_dict()
-                  st.session_state.checked_id = None
-                  st.success(t["register_success"])
-                  st.rerun()
+                        if st.button(t["register_btn"]):
+                            if not new_pass or not confirm_pass:
+                                st.warning(t["empty_input"])
+                            elif new_pass != confirm_pass:
+                                st.error(t["pass_mismatch"])
+                            else:
+                                existing_passes = df["Password"].astype(str).str.strip().tolist()
+                                if new_pass.strip() in existing_passes:
+                                    st.error(t["pass_taken"])
+                                else:
+                                    df.at[idx, "Password"] = new_pass.strip()
+                                    save_excel_safely(df)
+                                    st.session_state.logged_in_user = emp_name
+                                    st.session_state.logged_in_id = national_id_input
+                                    st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                                    st.session_state.checked_id = None
+                                    st.success(t["register_success"])
+                                    st.rerun()
+                    else:
+                        password_input = st.text_input(t["password_input_label"], type="password", key="login_p")
+                        if st.button(t["login_btn"]):
+                            if not password_input:
+                                st.warning(t["empty_input"])
+                            elif password_input.strip() == current_pass:
+                                st.session_state.logged_in_user = emp_name
+                                st.session_state.logged_in_id = national_id_input
+                                st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                                st.session_state.checked_id = None
+                                st.rerun()
+                            else:
+                                st.error(t["error_login"])
 
-          else:
-            password_input = st.text_input(
-                t["password_input_label"], type="password", key="login_p"
-            )
-            if st.button(t["login_btn"]):
-              if not password_input:
-                st.warning(t["empty_input"])
-              elif password_input.strip() == current_pass:
-                st.session_state.logged_in_user = emp_name
-                st.session_state.logged_in_id = national_id_input
-                st.session_state.employee_row_data = matched.loc[idx].to_dict()
-                st.session_state.checked_id = None
-                st.rerun()
-              else:
-                st.error(t["error_login"])
-
-  except Exception as e:
-    st.error(t["error_read"].format(error=e))
+    except Exception as e:
+        st.error(t["error_read"].format(error=e))
