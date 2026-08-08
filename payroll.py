@@ -7,14 +7,13 @@ import streamlit as st
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
 # --- GLOBAL SYSTEM FILES ---
-SHARED_FILE = "shared_payroll.xlsx"
 STATUS_FILE = "portal_status.txt"  
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
-    # STRICT CHECK: Must have both the file AND the status file marked as OPEN
-    if not os.path.exists(SHARED_FILE):
+    """Returns True ONLY if the active dataframe exists in memory AND the status file says OPEN."""
+    if st.session_state.get("active_df") is None:
         return False
     if not os.path.exists(STATUS_FILE):
         return False
@@ -138,6 +137,8 @@ if "employee_row_data" not in st.session_state:
     st.session_state.employee_row_data = None
 if "checked_id" not in st.session_state:
     st.session_state.checked_id = None
+if "active_df" not in st.session_state:
+    st.session_state.active_df = None
 
 # --- WIPE SESSION IF LOCKED ---
 if not is_portal_open():
@@ -154,10 +155,12 @@ def read_excel_file(file_path_or_buffer):
         raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
 
 def load_excel_df():
-    if not is_portal_open():
+    """Loads dataframe strictly from active session memory, completely isolating it from local static files."""
+    df = st.session_state.get("active_df")
+    if df is None:
         return None
     try:
-        df = read_excel_file(SHARED_FILE)
+        df = df.copy()
         df.columns = df.columns.str.strip()
 
         if "Password" not in df.columns:
@@ -185,6 +188,7 @@ def load_excel_df():
         return None
 
 def save_excel_safely(df):
+    """Updates active session dataframe directly in memory."""
     if "الرقم القومي" in df.columns:
         df["الرقم القومي"] = (
             df["الرقم القومي"]
@@ -201,8 +205,7 @@ def save_excel_safely(df):
         )
         df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
-    df.to_excel(SHARED_FILE, index=False)
-    set_portal_status(True)
+    st.session_state.active_df = df
     st.cache_data.clear()
 
 # --- ADMIN SECTION (Sidebar) ---
@@ -220,9 +223,9 @@ if not st.session_state.admin_authenticated:
                 st.success(t["admin_panel_unlocked"])
                 st.rerun()
             else:
-                st.error(t["admin_access_denied"])
+                st.sidebar.error(t["admin_access_denied"])
 else:
-    has_file = os.path.exists(SHARED_FILE)
+    has_file = st.session_state.get("active_df") is not None
     if has_file:
         current_status = is_portal_open()
         master_toggle = st.sidebar.checkbox(
@@ -243,9 +246,8 @@ else:
             df_upload.columns = df_upload.columns.str.strip()
 
             existing_passwords = {}
-            if os.path.exists(SHARED_FILE):
-                df_old = read_excel_file(SHARED_FILE)
-                df_old.columns = df_old.columns.str.strip()
+            df_old = st.session_state.get("active_df")
+            if df_old is not None:
                 if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
                     for _, row in df_old.iterrows():
                         nid = str(row["الرقم القومي"]).strip().replace(".0", "")
@@ -267,7 +269,7 @@ else:
         except Exception as e:
             st.sidebar.error(t["error_read"].format(error=e))
 
-    if os.path.exists(SHARED_FILE) and is_portal_open():
+    if st.session_state.get("active_df") is not None:
         st.sidebar.markdown("---")
         st.sidebar.subheader(t["admin_employees_header"])
         df_admin = load_excel_df()
@@ -309,10 +311,7 @@ else:
 
         st.sidebar.markdown("---")
         if st.sidebar.button(t["remove_btn"]):
-            if os.path.exists(SHARED_FILE):
-                os.remove(SHARED_FILE)
-            if os.path.exists(STATUS_FILE):
-                os.remove(STATUS_FILE)
+            st.session_state.active_df = None
             set_portal_status(False) 
             st.cache_data.clear()
             st.rerun()
@@ -344,14 +343,13 @@ with col_refresh:
 
 st.markdown("---")
 
-# --- STRICT GATEKEEPER CHECK: STOPS ENTIRE APP UNLESS OPEN & UPLOADED ---
 if not is_portal_open():
     st.error(t["portal_locked_msg"])
     st.stop()  
 
 
 # ====================================================================
-# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH AN EXCEL FILE REACH HERE
+# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH AN ACTIVE UPLOAD REACH HERE
 # ====================================================================
 
 if st.session_state.get("logged_in_user"):
