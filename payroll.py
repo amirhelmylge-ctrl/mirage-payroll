@@ -208,7 +208,6 @@ st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
 if not st.session_state.admin_authenticated:
-    # FIX: Wrapped Admin login in a form so pressing Enter triggers the login
     with st.sidebar.form(key="admin_login_form"):
         admin_pass_input = st.text_input(t["admin_pass_label"], type="password")
         submit_admin = st.form_submit_button(t["admin_pass_btn"])
@@ -341,7 +340,8 @@ with col_refresh:
 
 st.markdown("---")
 
-if not is_portal_open():
+# --- GATEKEEPER CHECK: BLOCK ENTIRELY IF NO EXCEL OR STATUS IS CLOSED ---
+if not is_portal_open() or not os.path.exists(SHARED_FILE):
     st.error(t["portal_locked_msg"])
     st.stop()  
 
@@ -436,7 +436,6 @@ else:
 
                     if current_pass == "" or current_pass.lower() == "nan":
                         st.info("✨ First time here? Please create a secure, unique password for your account.")
-                        # FIX: Wrapped registration in a form
                         with st.form(key="register_form"):
                             new_pass = st.text_input(t["new_password_label"], type="password")
                             confirm_pass = st.text_input(t["confirm_password_label"], type="password")
@@ -461,7 +460,6 @@ else:
                                         st.success(t["register_success"])
                                         st.rerun()
                     else:
-                        # FIX: Wrapped password login in a form
                         with st.form(key="login_form"):
                             password_input = st.text_input(t["password_input_label"], type="password")
                             submit_login = st.form_submit_button(t["login_btn"])
