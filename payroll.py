@@ -1,39 +1,32 @@
 import io
+import os
 import pandas as pd
 import streamlit as st
 
 # Page configuration
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
-# --- ADMIN PASSWORD ---
+# --- GLOBAL SYSTEM FILES ---
+SHARED_FILE = "shared_payroll.xlsx"
+STATUS_FILE = "portal_status.txt"  
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
-
-# --- Initialize Session States ---
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
-if "logged_in_user" not in st.session_state:
-    st.session_state.logged_in_user = None
-if "logged_in_id" not in st.session_state:
-    st.session_state.logged_in_id = None
-if "employee_row_data" not in st.session_state:
-    st.session_state.employee_row_data = None
-if "checked_id" not in st.session_state:
-    st.session_state.checked_id = None
-if "active_df" not in st.session_state:
-    st.session_state.active_df = None
-if "portal_open" not in st.session_state:
-    st.session_state.portal_open = False
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
-    return st.session_state.get("portal_open", False) and st.session_state.get("active_df") is not None
+    """Returns True ONLY if the shared file exists on the server AND status says OPEN."""
+    if not os.path.exists(SHARED_FILE):
+        return False
+    if not os.path.exists(STATUS_FILE):
+        return False
+    try:
+        with open(STATUS_FILE, "r") as f:
+            return f.read().strip() == "OPEN"
+    except Exception:
+        return False
 
-# WIPE LOGIN IF PORTAL CLOSED
-if not is_portal_open():
-    st.session_state.logged_in_user = None
-    st.session_state.logged_in_id = None
-    st.session_state.employee_row_data = None
-    st.session_state.checked_id = None
+def set_portal_status(is_open: bool):
+    with open(STATUS_FILE, "w") as f:
+        f.write("OPEN" if is_open else "CLOSED")
 
 # --- Language Translations Dictionary ---
 translations = {
@@ -133,6 +126,25 @@ translations = {
 selected_lang = st.sidebar.selectbox("Choose Language / اللغة", ["العربية", "English"])
 t = translations[selected_lang]
 
+# --- Initialize User Session States ---
+if "admin_authenticated" not in st.session_state:
+    st.session_state.admin_authenticated = False
+if "logged_in_user" not in st.session_state:
+    st.session_state.logged_in_user = None
+if "logged_in_id" not in st.session_state:
+    st.session_state.logged_in_id = None
+if "employee_row_data" not in st.session_state:
+    st.session_state.employee_row_data = None
+if "checked_id" not in st.session_state:
+    st.session_state.checked_id = None
+
+# --- WIPE SESSION IF LOCKED ---
+if not is_portal_open():
+    st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
+    st.session_state.employee_row_data = None
+    st.session_state.checked_id = None
+
 # --- Helper Functions ---
 def read_excel_file(file_path_or_buffer):
     try:
@@ -141,11 +153,10 @@ def read_excel_file(file_path_or_buffer):
         raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
 
 def load_excel_df():
-    df = st.session_state.get("active_df")
-    if df is None:
+    if not os.path.exists(SHARED_FILE):
         return None
     try:
-        df = df.copy()
+        df = read_excel_file(SHARED_FILE)
         df.columns = df.columns.str.strip()
 
         if "Password" not in df.columns:
@@ -189,7 +200,7 @@ def save_excel_safely(df):
         )
         df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
-    st.session_state.active_df = df
+    df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
 # --- ADMIN SECTION (Sidebar) ---
@@ -209,15 +220,15 @@ if not st.session_state.admin_authenticated:
             else:
                 st.sidebar.error(t["admin_access_denied"])
 else:
-    has_file = st.session_state.get("active_df") is not None
+    has_file = os.path.exists(SHARED_FILE)
     if has_file:
-        current_status = st.session_state.portal_open
+        current_status = is_portal_open()
         master_toggle = st.sidebar.checkbox(
             t["portal_master_toggle"],
             value=current_status,
         )
         if master_toggle != current_status:
-            st.session_state.portal_open = master_toggle
+            set_portal_status(master_toggle)
             st.rerun()
     else:
         st.sidebar.warning("⚠️ Upload an Excel sheet to enable portal access.")
@@ -230,8 +241,9 @@ else:
             df_upload.columns = df_upload.columns.str.strip()
 
             existing_passwords = {}
-            df_old = st.session_state.get("active_df")
-            if df_old is not None:
+            if os.path.exists(SHARED_FILE):
+                df_old = read_excel_file(SHARED_FILE)
+                df_old.columns = df_old.columns.str.strip()
                 if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
                     for _, row in df_old.iterrows():
                         nid = str(row["الرقم القومي"]).strip().replace(".0", "")
@@ -246,14 +258,14 @@ else:
             df_upload["Password"] = pass_col
 
             save_excel_safely(df_upload)
-            st.session_state.portal_open = True
+            set_portal_status(True)
             
             st.sidebar.success(t["upload_success"])
             st.rerun()
         except Exception as e:
             st.sidebar.error(t["error_read"].format(error=e))
 
-    if st.session_state.get("active_df") is not None:
+    if os.path.exists(SHARED_FILE):
         st.sidebar.markdown("---")
         st.sidebar.subheader(t["admin_employees_header"])
         df_admin = load_excel_df()
@@ -295,8 +307,9 @@ else:
 
         st.sidebar.markdown("---")
         if st.sidebar.button(t["remove_btn"]):
-            st.session_state.active_df = None
-            st.session_state.portal_open = False
+            if os.path.exists(SHARED_FILE):
+                os.remove(SHARED_FILE)
+            set_portal_status(False) 
             st.cache_data.clear()
             st.rerun()
 
@@ -333,7 +346,7 @@ if not is_portal_open():
 
 
 # ====================================================================
-# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH AN ACTIVE UPLOAD REACH HERE
+# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH A SHARED FILE REACH HERE
 # ====================================================================
 
 if st.session_state.get("logged_in_user"):
@@ -390,7 +403,6 @@ else:
             st.error(t["error_read"].format(error="Could not load data."))
         else:
             if st.session_state.get("checked_id") is None:
-                # Removed form wrapper to eliminate form state conflict on login button click
                 national_id_input = st.text_input(t["input_label"], key="national_id_field")
                 submit_id = st.button(t["check_id_btn"])
 
