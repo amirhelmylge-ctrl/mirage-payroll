@@ -6,6 +6,13 @@ import streamlit as st
 # Page configuration
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
+SHARED_FILE = "shared_payroll.xlsx"
+ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
+
+# --- HARD STATE PURGE IF FILE MISSING ---
+if not os.path.exists(SHARED_FILE):
+  st.session_state.clear()
+
 # --- Language Translations Dictionary ---
 translations = {
     "English": {
@@ -117,10 +124,7 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-SHARED_FILE = "shared_payroll.xlsx"
-ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
-
-# Initialize session states
+# Initialize remaining session states safely
 if "logged_in_user" not in st.session_state:
   st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
@@ -131,39 +135,6 @@ if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
 if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
-if "db_mtime" not in st.session_state:
-  st.session_state.db_mtime = 0
-
-
-# --- Helper Functions ---
-def is_database_active():
-  return os.path.exists(SHARED_FILE)
-
-
-def get_file_mtime():
-  if os.path.exists(SHARED_FILE):
-    return os.path.getmtime(SHARED_FILE)
-  return 0
-
-
-# --- STRICT SECURITY GUARD: File Integrity & State Sync ---
-current_file_mtime = get_file_mtime()
-
-if not is_database_active():
-  # Database is missing entirely - purge all active sessions immediately
-  st.session_state.logged_in_user = None
-  st.session_state.logged_in_id = None
-  st.session_state.employee_row_data = None
-  st.session_state.checked_id = None
-  st.session_state.db_mtime = 0
-elif st.session_state.db_mtime != current_file_mtime:
-  # Database file was updated, replaced, or modified on disk - invalidate sessions
-  st.session_state.logged_in_user = None
-  st.session_state.logged_in_id = None
-  st.session_state.employee_row_data = None
-  st.session_state.checked_id = None
-  st.session_state.db_mtime = current_file_mtime
-  st.cache_data.clear()
 
 
 def read_excel_file(file_path_or_buffer):
@@ -173,8 +144,7 @@ def read_excel_file(file_path_or_buffer):
     return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
 
 
-@st.cache_data(ttl=2)
-def load_excel_cached(file_mtime):
+def load_excel_df():
   if not os.path.exists(SHARED_FILE):
     return None
   try:
@@ -207,12 +177,6 @@ def load_excel_cached(file_mtime):
     return None
 
 
-def load_excel_df():
-  if not is_database_active():
-    return None
-  return load_excel_cached(get_file_mtime())
-
-
 def save_excel_safely(df):
   if "الرقم القومي" in df.columns:
     df["الرقم القومي"] = (
@@ -232,7 +196,6 @@ def save_excel_safely(df):
 
   df.to_excel(SHARED_FILE, index=False)
   st.cache_data.clear()
-  st.session_state.db_mtime = get_file_mtime()
 
 
 # --- Admin Section (Sidebar with Password Protection) ---
@@ -278,17 +241,12 @@ else:
       df_upload["Password"] = pass_col
 
       save_excel_safely(df_upload)
-      # Forcefully logout everyone upon new file upload
-      st.session_state.logged_in_user = None
-      st.session_state.logged_in_id = None
-      st.session_state.employee_row_data = None
-      st.session_state.checked_id = None
       st.sidebar.success(t["upload_success"])
       st.rerun()
     except Exception as e:
       st.sidebar.error(t["error_read"].format(error=e))
 
-  if is_database_active():
+  if os.path.exists(SHARED_FILE):
     st.sidebar.markdown("---")
     st.sidebar.subheader(t["admin_employees_header"])
     df_admin = load_excel_df()
@@ -334,13 +292,8 @@ else:
     if st.sidebar.button(t["remove_btn"]):
       if os.path.exists(SHARED_FILE):
         os.remove(SHARED_FILE)
-      st.session_state.logged_in_user = None
-      st.session_state.logged_in_id = None
-      st.session_state.employee_row_data = None
-      st.session_state.checked_id = None
-      st.session_state.db_mtime = 0
+      st.session_state.clear()
       st.cache_data.clear()
-      st.sidebar.success(t["remove_success"])
       st.rerun()
 
   if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
@@ -355,7 +308,9 @@ with col_refresh:
   st.write("")
   if st.button(t["refresh_btn"]):
     st.cache_data.clear()
-    if is_database_active() and st.session_state.logged_in_id:
+    if os.path.exists(SHARED_FILE) and st.session_state.get(
+        "logged_in_id"
+    ):
       df_refresh = load_excel_df()
       if df_refresh is not None:
         matched_ref = df_refresh[
@@ -367,29 +322,29 @@ with col_refresh:
     st.success(t["refresh_success"])
     st.rerun()
 
-# --- SECURE RENDER CONTROLLER ---
-if not is_database_active():
+# --- ABSOLUTE STRICT MASTER GATEKEEPER ---
+if not os.path.exists(SHARED_FILE):
+  # Force clean memory immediately if file is missing
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
   st.warning(t["upload_warning"])
 
-elif st.session_state.logged_in_user and st.session_state.logged_in_id:
-  # Double check that the logged-in user's ID still actually exists in the active file
-  df_check = load_excel_df()
-  valid_session = False
-  if df_check is not None:
-    verify_match = df_check[
-        df_check["الرقم القومي"].astype(str).str.strip()
-        == str(st.session_state.logged_in_id).strip()
+elif st.session_state.get("logged_in_user"):
+  # Verify user still exists in file
+  df_verify = load_excel_df()
+  user_exists = False
+  if df_verify is not None:
+    v_match = df_verify[
+        df_verify["الرقم القومي"].astype(str).str.strip()
+        == str(st.session_state.get("logged_in_id")).strip()
     ]
-    if not verify_match.empty:
-      valid_session = True
-      st.session_state.employee_row_data = verify_match.iloc[0].to_dict()
+    if not v_match.empty:
+      user_exists = True
+      st.session_state.employee_row_data = v_match.iloc[0].to_dict()
 
-  if not valid_session:
-    # Terminate invalid session instantly
+  if not user_exists:
     st.session_state.logged_in_user = None
     st.session_state.logged_in_id = None
     st.session_state.employee_row_data = None
@@ -401,10 +356,10 @@ elif st.session_state.logged_in_user and st.session_state.logged_in_id:
   st.markdown(f"### 📋 {t['dashboard_title']}")
   st.info(
       f"**{t['id_display']}**"
-      f" `{str(st.session_state.logged_in_id).strip()}`"
+      f" `{str(st.session_state.get('logged_in_id')).strip()}`"
   )
 
-  if st.session_state.employee_row_data is not None:
+  if st.session_state.get("employee_row_data") is not None:
     row_data = st.session_state.employee_row_data
 
     table_data = []
@@ -438,7 +393,7 @@ else:
     if df is None:
       st.warning(t["upload_warning"])
     else:
-      if st.session_state.checked_id is None:
+      if st.session_state.get("checked_id") is None:
         with st.form(key="id_verification_form"):
           national_id_input = st.text_input(t["input_label"])
           submit_id = st.form_submit_button(t["check_id_btn"])
@@ -462,7 +417,7 @@ else:
         national_id_input = st.session_state.checked_id
         matched = df[
             df["الرقم القومي"].astype(str).str.strip()
-            == national_id_input.strip()
+            == str(national_id_input).strip()
         ]
 
         if not matched.empty:
