@@ -115,6 +115,7 @@ selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "Engl
 t = translations[selected_lang]
 
 SHARED_FILE = "shared_payroll.xlsx"
+TEMP_FILE = "temp_shared_payroll.xlsx"
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # Initialize session states
@@ -128,26 +129,39 @@ if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
 
 
+# --- Safe Atomic Excel Saver (Prevents file corruption) ---
+def save_excel_safely(df):
+  try:
+    df.to_excel(TEMP_FILE, index=False)
+    os.replace(TEMP_FILE, SHA_FILE := SHARED_FILE)
+  except Exception:
+    if os.path.exists(TEMP_FILE):
+      os.remove(TEMP_FILE)
+    raise
+
+
 # --- Helper to load dataframe safely and handle columns ---
 def load_excel_df():
   if not os.path.exists(SHARED_FILE):
     return None
-  df = pd.read_excel(SHARED_FILE)
-  df.columns = df.columns.str.strip()
+  try:
+    df = pd.read_excel(SHARED_FILE)
+    df.columns = df.columns.str.strip()
 
-  # Automatically inject missing columns if they don't exist
-  updated = False
-  if "Password" not in df.columns:
-    df["Password"] = ""
-    updated = True
-  if "Status" not in df.columns:
-    df["Status"] = "Pending"
-    updated = True
+    updated = False
+    if "Password" not in df.columns:
+      df["Password"] = ""
+      updated = True
+    if "Status" not in df.columns:
+      df["Status"] = "Pending"
+      updated = True
 
-  if updated:
-    df.to_excel(SHARED_FILE, index=False)
+    if updated:
+      save_excel_safely(df)
 
-  return df
+    return df
+  except Exception:
+    return None
 
 
 # --- Admin Section (Sidebar with Password Protection) ---
@@ -174,7 +188,7 @@ else:
       df_upload.columns = df_upload.columns.str.strip()
       df_upload["Password"] = ""
       df_upload["Status"] = "Pending"
-      df_upload.to_excel(SHARED_FILE, index=False)
+      save_excel_safely(df_upload)
       st.sidebar.success(t["upload_success"])
       st.rerun()
     except Exception as e:
@@ -198,17 +212,18 @@ else:
           if status.lower() == "approved":
             if col_b.button(t["revoke_btn"], key=f"rev_{idx}"):
               df_admin.at[idx, "Status"] = "Pending"
-              df_admin.to_excel(SHARED_FILE, index=False)
+              save_excel_safely(df_admin)
               st.rerun()
           else:
             if col_b.button(t["approve_btn"], key=f"app_{idx}"):
               df_admin.at[idx, "Status"] = "Approved"
-              df_admin.to_excel(SHARED_FILE, index=False)
+              save_excel_safely(df_admin)
               st.rerun()
 
     st.sidebar.markdown("---")
     if st.sidebar.button(t["remove_btn"]):
-      os.remove(SHARED_FILE)
+      if os.path.exists(SHARED_FILE):
+        os.remove(SHARED_FILE)
       st.sidebar.success(t["remove_success"])
       st.rerun()
 
@@ -270,77 +285,82 @@ else:
   else:
     try:
       df = load_excel_df()
-      national_id_input = st.text_input(t["input_label"])
+      if df is None:
+        st.error("Error reading database file.")
+      else:
+        national_id_input = st.text_input(t["input_label"])
 
-      if national_id_input:
-        matched = df[
-            df["الرقم القومي"].astype(str).str.strip()
-            == national_id_input.strip()
-        ]
+        if national_id_input:
+          matched = df[
+              df["الرقم القومي"].astype(str).str.strip()
+              == national_id_input.strip()
+          ]
 
-        if not matched.empty:
-          idx = matched.index[0]
-          current_pass = str(matched.loc[idx, "Password"]).strip()
-          status = str(matched.loc[idx, "Status"]).strip().lower()
+          if not matched.empty:
+            idx = matched.index[0]
+            current_pass = str(matched.loc[idx, "Password"]).strip()
+            status = str(matched.loc[idx, "Status"]).strip().lower()
 
-          # SCENARIO 1: Employee has NO password yet -> Prompt to create password
-          if current_pass == "" or current_pass.lower() == "nan":
-            st.info(
-                "✨ First time here? Please create a secure, unique password"
-                " for your account."
-            )
-            new_pass = st.text_input(
-                t["new_password_label"], type="password", key="new_p"
-            )
-            confirm_pass = st.text_input(
-                t["confirm_password_label"], type="password", key="conf_p"
-            )
+            # SCENARIO 1: Employee has NO password yet -> Prompt to create password
+            if current_pass == "" or current_pass.lower() == "nan":
+              st.info(
+                  "✨ First time here? Please create a secure, unique password"
+                  " for your account."
+              )
+              new_pass = st.text_input(
+                  t["new_password_label"], type="password", key="new_p"
+              )
+              confirm_pass = st.text_input(
+                  t["confirm_password_label"], type="password", key="conf_p"
+              )
 
-            if st.button(t["register_btn"]):
-              if not new_pass or not confirm_pass:
-                st.warning(t["empty_input"])
-              elif new_pass != confirm_pass:
-                st.error(t["pass_mismatch"])
-              else:
-                existing_passes = df["Password"].astype(str).str.strip().tolist()
-                if new_pass.strip() in existing_passes:
-                  st.error(t["pass_taken"])
+              if st.button(t["register_btn"]):
+                if not new_pass or not confirm_pass:
+                  st.warning(t["empty_input"])
+                elif new_pass != confirm_pass:
+                  st.error(t["pass_mismatch"])
                 else:
-                  df.at[idx, "Password"] = new_pass.strip()
-                  df.at[idx, "Status"] = "Pending"
-                  df.to_excel(SHARED_FILE, index=False)
-                  st.success(t["register_success"])
+                  existing_passes = (
+                      df["Password"].astype(str).str.strip().tolist()
+                  )
+                  if new_pass.strip() in existing_passes:
+                    st.error(t["pass_taken"])
+                  else:
+                    df.at[idx, "Password"] = new_pass.strip()
+                    df.at[idx, "Status"] = "Pending"
+                    save_excel_safely(df)
+                    st.success(t["register_success"])
+                    st.rerun()
+
+            # SCENARIO 2: Password exists, but NOT approved yet -> Block access
+            elif status != "approved":
+              password_input = st.text_input(
+                  t["password_input_label"], type="password", key="login_p"
+              )
+              if st.button(t["login_btn"]):
+                if password_input.strip() == current_pass:
+                  st.warning(t["pending_approval"])
+                else:
+                  st.error(t["error_login"])
+
+            # SCENARIO 3: Password exists AND Approved -> Allow login
+            else:
+              password_input = st.text_input(
+                  t["password_input_label"], type="password", key="login_p"
+              )
+              if st.button(t["login_btn"]):
+                if not password_input:
+                  st.warning(t["empty_input"])
+                elif password_input.strip() == current_pass:
+                  st.session_state.logged_in_user = matched.loc[idx, "الاسم"]
+                  st.session_state.logged_in_id = national_id_input.strip()
+                  st.session_state.employee_row_data = matched.loc[idx].to_dict()
                   st.rerun()
-
-          # SCENARIO 2: Password exists, but NOT approved yet -> Block access
-          elif status != "approved":
-            password_input = st.text_input(
-                t["password_input_label"], type="password", key="login_p"
-            )
-            if st.button(t["login_btn"]):
-              if password_input.strip() == current_pass:
-                st.warning(t["pending_approval"])
-              else:
-                st.error(t["error_login"])
-
-          # SCENARIO 3: Password exists AND Approved -> Allow login
+                else:
+                  st.error(t["error_login"])
           else:
-            password_input = st.text_input(
-                t["password_input_label"], type="password", key="login_p"
-            )
             if st.button(t["login_btn"]):
-              if not password_input:
-                st.warning(t["empty_input"])
-              elif password_input.strip() == current_pass:
-                st.session_state.logged_in_user = matched.loc[idx, "الاسم"]
-                st.session_state.logged_in_id = national_id_input.strip()
-                st.session_state.employee_row_data = matched.loc[idx].to_dict()
-                st.rerun()
-              else:
-                st.error(t["error_login"])
-        else:
-          if st.button(t["login_btn"]):
-            st.error(t["error_id"])
+              st.error(t["error_id"])
 
     except Exception as e:
       st.error(t["error_read"].format(error=e))
