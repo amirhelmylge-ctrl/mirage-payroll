@@ -147,7 +147,6 @@ if not is_database_active():
 
 # --- Helper to Read Excel Safely (Supports both .xlsx and .xls) ---
 def read_excel_file(file_path_or_buffer):
-  # Determine engine based on extension or fallback
   try:
     return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
   except Exception:
@@ -400,9 +399,12 @@ else:
       st.warning(t["upload_warning"])
     else:
       if st.session_state.checked_id is None:
-        national_id_input = st.text_input(t["input_label"])
+        # Use a form so clicking the button or pressing Enter works reliably
+        with st.form(key="id_verification_form"):
+          national_id_input = st.text_input(t["input_label"])
+          submit_id = st.form_submit_button(t["check_id_btn"])
 
-        if st.button(t["check_id_btn"]):
+        if submit_id:
           if not national_id_input.strip():
             st.warning(t["empty_input"])
           else:
