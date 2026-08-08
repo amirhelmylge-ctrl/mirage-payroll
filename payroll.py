@@ -290,8 +290,16 @@ else:
 
             st.sidebar.markdown("---")
             df_export = df_admin.copy()
-            if "Password" in df_export.columns:
-                df_export = df_export.drop(columns=["Password"])
+            
+            # Map Arabic columns to English for export, keeping Password included
+            export_rename_map = {
+                "الرقم القومي": "National ID",
+                "الرقم القومى": "National ID",
+                "الاسم": "Name",
+                "اسم الموظف": "Name",
+                "Password": "Password"
+            }
+            df_export = df_export.rename(columns=export_rename_map)
 
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -419,7 +427,6 @@ else:
                             st.error(t["error_id"])
             else:
                 national_id_input = st.session_state.checked_id
-                # Reload fresh from shared file to ensure password state is current across devices
                 df_current = load_excel_df()
                 matched = df_current[df_current["الرقم القومي"].astype(str).str.strip() == str(national_id_input).strip()]
 
