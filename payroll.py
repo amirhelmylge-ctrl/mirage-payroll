@@ -1,3 +1,4 @@
+import io
 import os
 import pandas as pd
 import streamlit as st
@@ -16,16 +17,15 @@ translations = {
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
         "upload_label": "Upload Employees Excel File",
-        "download_btn": "📥 Download Updated Database (Excel)",
-        "remove_btn": "Remove Excel Sheet (Logout Everyone)",
+        "download_btn": "📥 Download Updated Database (Secure)",
+        "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
         "upload_success": (
-            "Excel file uploaded successfully! Employees can now register &"
-            " login."
+            "Excel uploaded successfully! Passwords safely preserved."
         ),
-        "remove_success": "Excel file removed. All active sessions logged out.",
+        "remove_success": "Excel file removed. Portal locked and everyone logged out.",
         "upload_warning": (
-            "⚠️ Employee database not uploaded yet. Please ask the admin to"
-            " upload the Excel file from the sidebar."
+            "⚠️ PORTAL LOCKED: Employee database has not been uploaded by the"
+            " admin yet. Access is restricted."
         ),
         "input_label": "National ID (الرقم القومي):",
         "check_id_btn": "Next / Verify ID",
@@ -54,7 +54,9 @@ translations = {
         "id_display": "National ID:",
         "table_col_key": "Field / Column",
         "table_col_val": "Value",
-        "admin_employees_header": "👥 Registered Employees",
+        "admin_employees_header": "👥 Employee Management & Passwords",
+        "reset_pass_btn": "Reset Password",
+        "reset_success": "Password successfully reset for {name}.",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -65,15 +67,15 @@ translations = {
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
         "upload_label": "رفع ملف الـ Excel للموظفين",
-        "download_btn": "📥 تحميل قاعدة البيانات المحدثة (Excel)",
-        "remove_btn": "حذف ملف الـ Excel (تسجيل خروج الجميع)",
+        "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
+        "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
         "upload_success": (
-            "تم رفع ملف الـ Excel بنجاح! يمكن للموظفين التسجيل وتسجيل الدخول الآن."
+            "تم رفع الملف بنجاح! تم الحفاظ على كلمات المرور للموظفين."
         ),
-        "remove_success": "تم حذف الملف وتسجيل خروج جميع الجلسات النشطة.",
+        "remove_success": "تم حذف الملف وإغلاق البوابة وتسجيل خروج الجميع.",
         "upload_warning": (
-            "⚠️ لم يتم رفع قاعدة بيانات الموظفين بعد. يرجى من المسؤول رفع ملف الـ"
-            " Excel من القائمة الجانبية."
+            "⚠️ البوابة مغلقة: لم يتم رفع قاعدة بيانات الموظفين من قبل المسؤول"
+            " بعد."
         ),
         "input_label": "الرقم القومي (National ID):",
         "check_id_btn": "التالي / التحقق من الرقم",
@@ -100,7 +102,9 @@ translations = {
         "id_display": "الرقم القومي:",
         "table_col_key": "الحقل / العمود",
         "table_col_val": "القيمة",
-        "admin_employees_header": "👥 الموظفون المسجلون",
+        "admin_employees_header": "👥 إدارة الموظفين وكلمات المرور",
+        "reset_pass_btn": "إعادة تعيين كلمة المرور",
+        "reset_success": "تم إعادة تعيين كلمة المرور للموظف {name} بنجاح.",
     },
 }
 
@@ -125,12 +129,11 @@ if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
 
 
-# --- Strict Security File-Check ---
+# --- Strict Database Validation ---
 def is_database_active():
   return os.path.exists(SHARED_FILE)
 
 
-# If database is missing, force immediate total logout and block state
 if not is_database_active():
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
@@ -228,7 +231,25 @@ else:
     try:
       df_upload = pd.read_excel(uploaded_file, dtype=str)
       df_upload.columns = df_upload.columns.str.strip()
-      df_upload["Password"] = ""
+
+      # Smart Password Retention across updates
+      existing_passwords = {}
+      if os.path.exists(SHARED_FILE):
+        df_old = pd.read_excel(SHARED_FILE, dtype=str)
+        df_old.columns = df_old.columns.str.strip()
+        if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
+          for _, row in df_old.iterrows():
+            nid = str(row["الرقم القومي"]).strip().replace(".0", "")
+            pwd = str(row["Password"]).strip()
+            if pwd and pwd.lower() not in ["nan", "none", ""]:
+              existing_passwords[nid] = pwd
+
+      pass_col = []
+      for _, row in df_upload.iterrows():
+        nid = str(row.get("الرقم القومي", "")).strip().replace(".0", "")
+        pass_col.append(existing_passwords.get(nid, ""))
+      df_upload["Password"] = pass_col
+
       save_excel_safely(df_upload)
       st.sidebar.success(t["upload_success"])
       st.rerun()
@@ -242,19 +263,37 @@ else:
     if df_admin is not None:
       for idx, row in df_admin.iterrows():
         name = row.get("الاسم", f"Employee {idx}")
-        has_pass = (
-            str(row.get("Password", "")).strip() not in ["", "nan", "None"]
-        )
+        nid = str(row.get("الرقم القومي", "")).strip()
+        current_pwd = str(row.get("Password", "")).strip()
+        has_pass = current_pwd not in ["", "nan", "None"]
         status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
-        st.sidebar.write(f"• **{name}** ({status_text})")
+
+        with st.sidebar.expander(f"{name} ({status_text})"):
+          st.write(f"ID: `{nid}`")
+          if has_pass:
+            if st.button(t["reset_pass_btn"], key=f"reset_{nid}_{idx}"):
+              df_admin.at[idx, "Password"] = ""
+              save_excel_safely(df_admin)
+              st.success(t["reset_success"].format(name=name))
+              st.rerun()
+          else:
+            st.info("No password set yet.")
 
       st.sidebar.markdown("---")
-      with open(SHARED_FILE, "rb") as f:
-        excel_bytes = f.read()
+      # Secure Export: Strip Password column so exported files never leak passwords
+      df_export = df_admin.copy()
+      if "Password" in df_export.columns:
+        df_export = df_export.drop(columns=["Password"])
+
+      output = io.BytesIO()
+      with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_export.to_excel(writer, index=False)
+      excel_bytes = output.getvalue()
+
       st.sidebar.download_button(
           label=t["download_btn"],
           data=excel_bytes,
-          file_name="updated_employee_database.xlsx",
+          file_name="employee_payroll_database.xlsx",
           mime=(
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           ),
@@ -279,7 +318,7 @@ else:
 # --- Main Page Layout ---
 st.title(t["title"])
 
-# Final security gate: If file is missing, block everything and show warning
+# ABSOLUTE SECURITY CHECK: Block everything if database is not active
 if not is_database_active():
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
@@ -328,7 +367,7 @@ else:
   try:
     df = load_excel_df()
     if df is None:
-      st.error("Error reading database file.")
+      st.warning(t["upload_warning"])
     else:
       if st.session_state.checked_id is None:
         national_id_input = st.text_input(t["input_label"])
