@@ -9,9 +9,16 @@ st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 SHARED_FILE = "shared_payroll.xlsx"
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
-# --- HARD STATE PURGE IF FILE MISSING ---
+# --- ABSOLUTE INITIALIZATION & SECURITY WIPE ---
+if "admin_portal_unlocked_master" not in st.session_state:
+  st.session_state.admin_portal_unlocked_master = True  # Default open if file exists
+
+# If file does not exist, completely purge all user sessions immediately
 if not os.path.exists(SHARED_FILE):
-  st.session_state.clear()
+  st.session_state.logged_in_user = None
+  st.session_state.logged_in_id = None
+  st.session_state.employee_row_data = None
+  st.session_state.checked_id = None
 
 # --- Language Translations Dictionary ---
 translations = {
@@ -23,6 +30,11 @@ translations = {
         "admin_pass_btn": "Unlock Admin Panel",
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
+        "portal_master_toggle": "🔓 Enable Employee Portal Access",
+        "portal_locked_master_warning": (
+            "⚠️ PORTAL LOCKED BY ADMIN: Employee login is currently disabled by"
+            " the administrator."
+        ),
         "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
         "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
@@ -75,6 +87,10 @@ translations = {
         "admin_pass_btn": "فتح لوحة المسؤول",
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
+        "portal_master_toggle": "🔓 تفعيل دخول الموظفين للبوابة",
+        "portal_locked_master_warning": (
+            "⚠️ البوابة مغلقة من قبل المسؤول: تم تعطيل تسجيل الدخول مؤقتاً."
+        ),
         "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
         "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
@@ -214,6 +230,21 @@ if not st.session_state.admin_authenticated:
     else:
       st.sidebar.error(t["admin_access_denied"])
 else:
+  # Master Switch to instantly lock/unlock employee logins from admin side
+  master_toggle = st.sidebar.checkbox(
+      t["portal_master_toggle"],
+      value=st.session_state.admin_portal_unlocked_master,
+  )
+  if master_toggle != st.session_state.admin_portal_unlocked_master:
+    st.session_state.admin_portal_unlocked_master = master_toggle
+    if not master_toggle:
+      # Instantly logout everyone if master toggle is turned off
+      st.session_state.logged_in_user = None
+      st.session_state.logged_in_id = None
+      st.session_state.employee_row_data = None
+      st.session_state.checked_id = None
+    st.rerun()
+
   uploaded_file = st.sidebar.file_uploader(
       t["upload_label"], type=["xlsx", "xls"]
   )
@@ -292,7 +323,11 @@ else:
     if st.sidebar.button(t["remove_btn"]):
       if os.path.exists(SHARED_FILE):
         os.remove(SHARED_FILE)
-      st.session_state.clear()
+      st.session_state.logged_in_user = None
+      st.session_state.logged_in_id = None
+      st.session_state.employee_row_data = None
+      st.session_state.checked_id = None
+      st.session_state.admin_portal_unlocked_master = False
       st.cache_data.clear()
       st.rerun()
 
@@ -322,14 +357,20 @@ with col_refresh:
     st.success(t["refresh_success"])
     st.rerun()
 
-# --- ABSOLUTE STRICT MASTER GATEKEEPER ---
-if not os.path.exists(SHARED_FILE):
-  # Force clean memory immediately if file is missing
+# --- ABSOLUTE STRICT MASTER GATEKEEPER & SESSION WIPE ---
+if not os.path.exists(SHARED_FILE) or not st.session_state.get(
+    "admin_portal_unlocked_master", True
+):
+  # Force wipe all user session tokens instantly if file is missing or portal is locked
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
-  st.warning(t["upload_warning"])
+
+  if not os.path.exists(SHARED_FILE):
+    st.warning(t["upload_warning"])
+  else:
+    st.warning(t["portal_locked_master_warning"])
 
 elif st.session_state.get("logged_in_user"):
   # Verify user still exists in file
