@@ -138,7 +138,7 @@ def is_database_active():
   return os.path.exists(SHARED_FILE)
 
 
-# If database file is missing from disk, forcefully clear any stale user sessions
+# FORCE PURGE session state immediately if database file doesn't exist
 if not is_database_active():
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
@@ -336,7 +336,7 @@ with col_refresh:
   st.write("")  # spacing
   if st.button(t["refresh_btn"]):
     st.cache_data.clear()
-    if st.session_state.logged_in_id and is_database_active():
+    if is_database_active() and st.session_state.logged_in_id:
       df_refresh = load_excel_df()
       if df_refresh is not None:
         matched_ref = df_refresh[
@@ -348,12 +348,14 @@ with col_refresh:
     st.success(t["refresh_success"])
     st.rerun()
 
-# ABSOLUTE SECURITY CHECK: Block everything if database is not active
+# --- ABSOLUTE BULLETPROOF SECURITY GATEKEEPER ---
 if not is_database_active():
+  # Forcefully clear session attributes to completely lock the interface
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
+
   st.warning(t["upload_warning"])
 
 elif st.session_state.logged_in_user:
@@ -488,3 +490,4 @@ else:
 
   except Exception as e:
     st.error(t["error_read"].format(error=e))
+      
