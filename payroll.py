@@ -7,14 +7,12 @@ import streamlit as st
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
 # --- GLOBAL SYSTEM FILES ---
-# These dictate the state for ALL users accessing the app globally.
 SHARED_FILE = "shared_payroll.xlsx"
-STATUS_FILE = "portal_status.txt"  # NEW: Hard lock file
+STATUS_FILE = "portal_status.txt"  
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
-    """Returns True ONLY if the Excel file exists AND the status file explicitly says OPEN."""
     if not os.path.exists(SHARED_FILE):
         return False
     if not os.path.exists(STATUS_FILE):
@@ -26,7 +24,6 @@ def is_portal_open():
         return False
 
 def set_portal_status(is_open: bool):
-    """Writes the exact state to a physical file so it affects all devices globally."""
     with open(STATUS_FILE, "w") as f:
         f.write("OPEN" if is_open else "CLOSED")
 
@@ -142,7 +139,6 @@ if "checked_id" not in st.session_state:
     st.session_state.checked_id = None
 
 # --- WIPE SESSION IF LOCKED ---
-# If the portal is locked, aggressively wipe any lingering login tokens
 if not is_portal_open():
     st.session_state.logged_in_user = None
     st.session_state.logged_in_id = None
@@ -152,9 +148,9 @@ if not is_portal_open():
 # --- Helper Functions ---
 def read_excel_file(file_path_or_buffer):
     try:
-        return pd.read_excel(file_path_or_buffer, dtype=str, engine="openpyxl")
-    except Exception:
-        return pd.read_excel(file_path_or_buffer, dtype=str, engine="xlrd")
+        return pd.read_excel(file_path_or_buffer, dtype=str)
+    except Exception as e:
+        raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
 
 def load_excel_df():
     if not os.path.exists(SHARED_FILE):
@@ -212,16 +208,19 @@ st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
 if not st.session_state.admin_authenticated:
-    admin_pass_input = st.sidebar.text_input(t["admin_pass_label"], type="password")
-    if st.sidebar.button(t["admin_pass_btn"]):
-        if admin_pass_input == ADMIN_PASSWORD:
-            st.session_state.admin_authenticated = True
-            st.sidebar.success(t["admin_panel_unlocked"])
-            st.rerun()
-        else:
-            st.sidebar.error(t["admin_access_denied"])
+    # FIX: Wrapped Admin login in a form so pressing Enter triggers the login
+    with st.sidebar.form(key="admin_login_form"):
+        admin_pass_input = st.text_input(t["admin_pass_label"], type="password")
+        submit_admin = st.form_submit_button(t["admin_pass_btn"])
+        
+        if submit_admin:
+            if admin_pass_input == ADMIN_PASSWORD:
+                st.session_state.admin_authenticated = True
+                st.success(t["admin_panel_unlocked"])
+                st.rerun()
+            else:
+                st.error(t["admin_access_denied"])
 else:
-    # Portal Master Switch Toggle
     has_file = os.path.exists(SHARED_FILE)
     if has_file:
         current_status = is_portal_open()
@@ -260,8 +259,6 @@ else:
             df_upload["Password"] = pass_col
 
             save_excel_safely(df_upload)
-            
-            # AUTOMATICALLY unlock the portal when the admin uploads a new sheet
             set_portal_status(True)
             
             st.sidebar.success(t["upload_success"])
@@ -313,7 +310,7 @@ else:
         if st.sidebar.button(t["remove_btn"]):
             if os.path.exists(SHARED_FILE):
                 os.remove(SHARED_FILE)
-            set_portal_status(False) # Instantly lock it globally
+            set_portal_status(False) 
             st.cache_data.clear()
             st.rerun()
 
@@ -344,11 +341,9 @@ with col_refresh:
 
 st.markdown("---")
 
-# --- THE ABSOLUTE GATEKEEPER STOP ---
-# If the portal is not fully open, throw an error and HALT EVERYTHING.
 if not is_portal_open():
     st.error(t["portal_locked_msg"])
-    st.stop()  # NOTHING below this line will render. The login UI cannot physically appear.
+    st.stop()  
 
 
 # ====================================================================
@@ -356,7 +351,6 @@ if not is_portal_open():
 # ====================================================================
 
 if st.session_state.get("logged_in_user"):
-    # VERIFY USER STILL EXISTS
     df_verify = load_excel_df()
     user_exists = False
     if df_verify is not None:
@@ -442,40 +436,47 @@ else:
 
                     if current_pass == "" or current_pass.lower() == "nan":
                         st.info("✨ First time here? Please create a secure, unique password for your account.")
-                        new_pass = st.text_input(t["new_password_label"], type="password", key="new_p")
-                        confirm_pass = st.text_input(t["confirm_password_label"], type="password", key="conf_p")
+                        # FIX: Wrapped registration in a form
+                        with st.form(key="register_form"):
+                            new_pass = st.text_input(t["new_password_label"], type="password")
+                            confirm_pass = st.text_input(t["confirm_password_label"], type="password")
+                            submit_register = st.form_submit_button(t["register_btn"])
 
-                        if st.button(t["register_btn"]):
-                            if not new_pass or not confirm_pass:
-                                st.warning(t["empty_input"])
-                            elif new_pass != confirm_pass:
-                                st.error(t["pass_mismatch"])
-                            else:
-                                existing_passes = df["Password"].astype(str).str.strip().tolist()
-                                if new_pass.strip() in existing_passes:
-                                    st.error(t["pass_taken"])
+                            if submit_register:
+                                if not new_pass or not confirm_pass:
+                                    st.warning(t["empty_input"])
+                                elif new_pass != confirm_pass:
+                                    st.error(t["pass_mismatch"])
                                 else:
-                                    df.at[idx, "Password"] = new_pass.strip()
-                                    save_excel_safely(df)
+                                    existing_passes = df["Password"].astype(str).str.strip().tolist()
+                                    if new_pass.strip() in existing_passes:
+                                        st.error(t["pass_taken"])
+                                    else:
+                                        df.at[idx, "Password"] = new_pass.strip()
+                                        save_excel_safely(df)
+                                        st.session_state.logged_in_user = emp_name
+                                        st.session_state.logged_in_id = national_id_input
+                                        st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                                        st.session_state.checked_id = None
+                                        st.success(t["register_success"])
+                                        st.rerun()
+                    else:
+                        # FIX: Wrapped password login in a form
+                        with st.form(key="login_form"):
+                            password_input = st.text_input(t["password_input_label"], type="password")
+                            submit_login = st.form_submit_button(t["login_btn"])
+                            
+                            if submit_login:
+                                if not password_input:
+                                    st.warning(t["empty_input"])
+                                elif password_input.strip() == current_pass:
                                     st.session_state.logged_in_user = emp_name
                                     st.session_state.logged_in_id = national_id_input
                                     st.session_state.employee_row_data = matched.loc[idx].to_dict()
                                     st.session_state.checked_id = None
-                                    st.success(t["register_success"])
                                     st.rerun()
-                    else:
-                        password_input = st.text_input(t["password_input_label"], type="password", key="login_p")
-                        if st.button(t["login_btn"]):
-                            if not password_input:
-                                st.warning(t["empty_input"])
-                            elif password_input.strip() == current_pass:
-                                st.session_state.logged_in_user = emp_name
-                                st.session_state.logged_in_id = national_id_input
-                                st.session_state.employee_row_data = matched.loc[idx].to_dict()
-                                st.session_state.checked_id = None
-                                st.rerun()
-                            else:
-                                st.error(t["error_login"])
+                                else:
+                                    st.error(t["error_login"])
 
     except Exception as e:
         st.error(t["error_read"].format(error=e))
