@@ -138,6 +138,7 @@ def is_database_active():
   return os.path.exists(SHARED_FILE)
 
 
+# If database file is missing from disk, forcefully clear any stale user sessions
 if not is_database_active():
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
