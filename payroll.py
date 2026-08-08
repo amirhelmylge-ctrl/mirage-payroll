@@ -125,6 +125,19 @@ if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
 
 
+# --- Strict Security File-Check ---
+def is_database_active():
+  return os.path.exists(SHARED_FILE)
+
+
+# If database is missing, force immediate total logout and block state
+if not is_database_active():
+  st.session_state.logged_in_user = None
+  st.session_state.logged_in_id = None
+  st.session_state.employee_row_data = None
+  st.session_state.checked_id = None
+
+
 # --- High-Speed Cached DataFrame Loader ---
 @st.cache_data(ttl=2)
 def load_excel_cached(file_mtime):
@@ -167,6 +180,8 @@ def get_file_mtime():
 
 
 def load_excel_df():
+  if not is_database_active():
+    return None
   return load_excel_cached(get_file_mtime())
 
 
@@ -220,7 +235,7 @@ else:
     except Exception as e:
       st.sidebar.error(t["error_read"].format(error=e))
 
-  if os.path.exists(SHARED_FILE):
+  if is_database_active():
     st.sidebar.markdown("---")
     st.sidebar.subheader(t["admin_employees_header"])
     df_admin = load_excel_df()
@@ -249,6 +264,9 @@ else:
     if st.sidebar.button(t["remove_btn"]):
       if os.path.exists(SHARED_FILE):
         os.remove(SHARED_FILE)
+      st.session_state.logged_in_user = None
+      st.session_state.logged_in_id = None
+      st.session_state.employee_row_data = None
       st.session_state.checked_id = None
       st.cache_data.clear()
       st.sidebar.success(t["remove_success"])
@@ -258,19 +276,18 @@ else:
     st.session_state.admin_authenticated = False
     st.rerun()
 
-file_exists = os.path.exists(SHARED_FILE)
+# --- Main Page Layout ---
+st.title(t["title"])
 
-if not file_exists and st.session_state.logged_in_user is not None:
+# Final security gate: If file is missing, block everything and show warning
+if not is_database_active():
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
   st.session_state.checked_id = None
-  st.rerun()
+  st.warning(t["upload_warning"])
 
-# --- Main Page Layout ---
-st.title(t["title"])
-
-if st.session_state.logged_in_user:
+elif st.session_state.logged_in_user:
   st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
 
   st.markdown(f"### 📋 {t['dashboard_title']}")
@@ -308,102 +325,95 @@ if st.session_state.logged_in_user:
 else:
   st.write(t["subtitle"])
 
-  if not file_exists:
-    st.warning(t["upload_warning"])
-  else:
-    try:
-      df = load_excel_df()
-      if df is None:
-        st.error("Error reading database file.")
-      else:
-        if st.session_state.checked_id is None:
-          national_id_input = st.text_input(t["input_label"])
+  try:
+    df = load_excel_df()
+    if df is None:
+      st.error("Error reading database file.")
+    else:
+      if st.session_state.checked_id is None:
+        national_id_input = st.text_input(t["input_label"])
 
-          if st.button(t["check_id_btn"]):
-            if not national_id_input.strip():
-              st.warning(t["empty_input"])
-            else:
-              clean_input_id = (
-                  national_id_input.strip()
-                  .replace(".0", "")
-                  .replace("\t", "")
-              )
-              matched = df[
-                  df["الرقم القومي"].astype(str).str.strip() == clean_input_id
-              ]
-              if not matched.empty:
-                st.session_state.checked_id = clean_input_id
-                st.rerun()
-              else:
-                st.error(t["error_id"])
-        else:
-          national_id_input = st.session_state.checked_id
-          matched = df[
-              df["الرقم القومي"].astype(str).str.strip()
-              == national_id_input.strip()
-          ]
-
-          if not matched.empty:
-            idx = matched.index[0]
-            current_pass = str(matched.loc[idx, "Password"]).strip()
-            emp_name = matched.loc[idx, "الاسم"]
-
-            st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
-
-            if st.button(t["back_btn"]):
-              st.session_state.checked_id = None
+        if st.button(t["check_id_btn"]):
+          if not national_id_input.strip():
+            st.warning(t["empty_input"])
+          else:
+            clean_input_id = (
+                national_id_input.strip().replace(".0", "").replace("\t", "")
+            )
+            matched = df[
+                df["الرقم القومي"].astype(str).str.strip() == clean_input_id
+            ]
+            if not matched.empty:
+              st.session_state.checked_id = clean_input_id
               st.rerun()
-
-            if current_pass == "" or current_pass.lower() == "nan":
-              st.info(
-                  "✨ First time here? Please create a secure, unique password"
-                  " for your account."
-              )
-              new_pass = st.text_input(
-                  t["new_password_label"], type="password", key="new_p"
-              )
-              confirm_pass = st.text_input(
-                  t["confirm_password_label"], type="password", key="conf_p"
-              )
-
-              if st.button(t["register_btn"]):
-                if not new_pass or not confirm_pass:
-                  st.warning(t["empty_input"])
-                elif new_pass != confirm_pass:
-                  st.error(t["pass_mismatch"])
-                else:
-                  existing_passes = (
-                      df["Password"].astype(str).str.strip().tolist()
-                  )
-                  if new_pass.strip() in existing_passes:
-                    st.error(t["pass_taken"])
-                  else:
-                    df.at[idx, "Password"] = new_pass.strip()
-                    save_excel_safely(df)
-                    st.session_state.logged_in_user = emp_name
-                    st.session_state.logged_in_id = national_id_input
-                    st.session_state.employee_row_data = matched.loc[
-                        idx
-                    ].to_dict()
-                    st.session_state.checked_id = None
-                    st.success(t["register_success"])
-                    st.rerun()
-
             else:
-              password_input = st.text_input(
-                  t["password_input_label"], type="password", key="login_p"
-              )
-              if st.button(t["login_btn"]):
-                if not password_input:
-                  st.warning(t["empty_input"])
-                elif password_input.strip() == current_pass:
+              st.error(t["error_id"])
+      else:
+        national_id_input = st.session_state.checked_id
+        matched = df[
+            df["الرقم القومي"].astype(str).str.strip()
+            == national_id_input.strip()
+        ]
+
+        if not matched.empty:
+          idx = matched.index[0]
+          current_pass = str(matched.loc[idx, "Password"]).strip()
+          emp_name = matched.loc[idx, "الاسم"]
+
+          st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
+
+          if st.button(t["back_btn"]):
+            st.session_state.checked_id = None
+            st.rerun()
+
+          if current_pass == "" or current_pass.lower() == "nan":
+            st.info(
+                "✨ First time here? Please create a secure, unique password"
+                " for your account."
+            )
+            new_pass = st.text_input(
+                t["new_password_label"], type="password", key="new_p"
+            )
+            confirm_pass = st.text_input(
+                t["confirm_password_label"], type="password", key="conf_p"
+            )
+
+            if st.button(t["register_btn"]):
+              if not new_pass or not confirm_pass:
+                st.warning(t["empty_input"])
+              elif new_pass != confirm_pass:
+                st.error(t["pass_mismatch"])
+              else:
+                existing_passes = (
+                    df["Password"].astype(str).str.strip().tolist()
+                )
+                if new_pass.strip() in existing_passes:
+                  st.error(t["pass_taken"])
+                else:
+                  df.at[idx, "Password"] = new_pass.strip()
+                  save_excel_safely(df)
                   st.session_state.logged_in_user = emp_name
                   st.session_state.logged_in_id = national_id_input
                   st.session_state.employee_row_data = matched.loc[idx].to_dict()
                   st.session_state.checked_id = None
+                  st.success(t["register_success"])
                   st.rerun()
-                else:
-                  st.error(t["error_login"])
 
-    except Exception as e:
-      st.error(t["error_read"].format(error=e))
+          else:
+            password_input = st.text_input(
+                t["password_input_label"], type="password", key="login_p"
+            )
+            if st.button(t["login_btn"]):
+              if not password_input:
+                st.warning(t["empty_input"])
+              elif password_input.strip() == current_pass:
+                st.session_state.logged_in_user = emp_name
+                st.session_state.logged_in_id = national_id_input
+                st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                st.session_state.checked_id = None
+                st.rerun()
+              else:
+                st.error(t["error_login"])
+
+  except Exception as e:
+    st.error(t["error_read"].format(error=e))
