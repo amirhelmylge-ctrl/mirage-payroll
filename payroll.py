@@ -26,19 +26,24 @@ translations = {
             " upload the Excel file from the sidebar."
         ),
         "input_label": "National ID (الرقم القومي):",
+        "check_id_btn": "Next / Verify ID",
         "password_input_label": "Password (كلمة المرور):",
         "new_password_label": "Create Your Password (أنشئ كلمة المرور):",
         "confirm_password_label": "Confirm Password (تأكيد كلمة المرور):",
         "register_btn": "Register & Request Approval",
         "login_btn": "Login",
         "logout_btn": "Logout",
+        "back_btn": "← Back",
         "empty_input": "Please fill in all required fields.",
         "pass_mismatch": "Passwords do not match. Please try again.",
         "pass_taken": (
             "⚠️ This password is already taken by another employee. Please"
             " choose a different one."
         ),
-        "error_id": "Incorrect National ID. Please check and try again.",
+        "error_id": (
+            "⚠️ National ID not found in the database. Please check and try"
+            " again."
+        ),
         "error_login": "Incorrect Password. Please check and try again.",
         "pending_approval": (
             "⏳ Your account is registered, but **waiting for Admin approval**."
@@ -77,18 +82,22 @@ translations = {
             " Excel من القائمة الجانبية."
         ),
         "input_label": "الرقم القومي (National ID):",
+        "check_id_btn": "التالي / التحقق من الرقم",
         "password_input_label": "كلمة المرور (Password):",
         "new_password_label": "أنشئ كلمة المرور الخاصة بك:",
         "confirm_password_label": "تأكيد كلمة المرور:",
         "register_btn": "التسجيل وطلب الموافقة",
         "login_btn": "تسجيل الدخول",
         "logout_btn": "تسجيل الخروج",
+        "back_btn": "← رجوع",
         "empty_input": "الرجاء ملء جميع الحقول المطلوبة.",
         "pass_mismatch": "كلمتا المرور غير متطابقتين. يرجى المحاولة مرة أخرى.",
         "pass_taken": (
             "⚠️ كلمة المرور هذه مستخدمة من قبل موظف آخر. اختر كلمة مرور فريدة."
         ),
-        "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
+        "error_id": (
+            "⚠️ الرقم القومي غير موجود في قاعدة البيانات. يرجى التحقق والمحاولة."
+        ),
         "error_login": "كلمة المرور غير صحيحة. يرجى التحقق.",
         "pending_approval": (
             "⏳ حسابك مسجل ولكن **في انتظار موافقة المسؤول (Admin)**. يرجى التواصل"
@@ -127,20 +136,22 @@ if "employee_row_data" not in st.session_state:
   st.session_state.employee_row_data = None
 if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
+if "checked_id" not in st.session_state:
+  st.session_state.checked_id = None
 
 
-# --- Safe Atomic Excel Saver (Prevents file corruption) ---
+# --- Safe Atomic Excel Saver ---
 def save_excel_safely(df):
   try:
     df.to_excel(TEMP_FILE, index=False)
-    os.replace(TEMP_FILE, SHA_FILE := SHARED_FILE)
+    os.replace(TEMP_FILE, SHARED_FILE)
   except Exception:
     if os.path.exists(TEMP_FILE):
       os.remove(TEMP_FILE)
     raise
 
 
-# --- Helper to load dataframe safely and handle columns ---
+# --- Helper to load dataframe safely ---
 def load_excel_df():
   if not os.path.exists(SHARED_FILE):
     return None
@@ -224,6 +235,7 @@ else:
     if st.sidebar.button(t["remove_btn"]):
       if os.path.exists(SHARED_FILE):
         os.remove(SHARED_FILE)
+      st.session_state.checked_id = None
       st.sidebar.success(t["remove_success"])
       st.rerun()
 
@@ -238,6 +250,7 @@ if not file_exists and st.session_state.logged_in_user is not None:
   st.session_state.logged_in_user = None
   st.session_state.logged_in_id = None
   st.session_state.employee_row_data = None
+  st.session_state.checked_id = None
   st.rerun()
 
 # --- Main Page Layout ---
@@ -275,6 +288,7 @@ if st.session_state.logged_in_user:
     st.session_state.logged_in_user = None
     st.session_state.logged_in_id = None
     st.session_state.employee_row_data = None
+    st.session_state.checked_id = None
     st.rerun()
 
 else:
@@ -288,9 +302,26 @@ else:
       if df is None:
         st.error("Error reading database file.")
       else:
-        national_id_input = st.text_input(t["input_label"])
+        # Step 1: Enter ID and click Verify Button
+        if st.session_state.checked_id is None:
+          national_id_input = st.text_input(t["input_label"])
 
-        if national_id_input:
+          if st.button(t["check_id_btn"]):
+            if not national_id_input.strip():
+              st.warning(t["empty_input"])
+            else:
+              matched = df[
+                  df["الرقم القومي"].astype(str).str.strip()
+                  == national_id_input.strip()
+              ]
+              if not matched.empty:
+                st.session_state.checked_id = national_id_input.strip()
+                st.rerun()
+              else:
+                st.error(t["error_id"])
+        else:
+          # Step 2: ID is verified, show registration or login depending on password status
+          national_id_input = st.session_state.checked_id
           matched = df[
               df["الرقم القومي"].astype(str).str.strip()
               == national_id_input.strip()
@@ -300,8 +331,15 @@ else:
             idx = matched.index[0]
             current_pass = str(matched.loc[idx, "Password"]).strip()
             status = str(matched.loc[idx, "Status"]).strip().lower()
+            emp_name = matched.loc[idx, "الاسم"]
 
-            # SCENARIO 1: Employee has NO password yet -> Prompt to create password
+            st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
+
+            if st.button(t["back_btn"]):
+              st.session_state.checked_id = None
+              st.rerun()
+
+            # SCENARIO A: No password -> Create password form
             if current_pass == "" or current_pass.lower() == "nan":
               st.info(
                   "✨ First time here? Please create a secure, unique password"
@@ -330,9 +368,10 @@ else:
                     df.at[idx, "Status"] = "Pending"
                     save_excel_safely(df)
                     st.success(t["register_success"])
+                    st.session_state.checked_id = None
                     st.rerun()
 
-            # SCENARIO 2: Password exists, but NOT approved yet -> Block access
+            # SCENARIO B: Password exists, but NOT approved yet
             elif status != "approved":
               password_input = st.text_input(
                   t["password_input_label"], type="password", key="login_p"
@@ -343,7 +382,7 @@ else:
                 else:
                   st.error(t["error_login"])
 
-            # SCENARIO 3: Password exists AND Approved -> Allow login
+            # SCENARIO C: Password exists AND Approved -> Login
             else:
               password_input = st.text_input(
                   t["password_input_label"], type="password", key="login_p"
@@ -352,15 +391,13 @@ else:
                 if not password_input:
                   st.warning(t["empty_input"])
                 elif password_input.strip() == current_pass:
-                  st.session_state.logged_in_user = matched.loc[idx, "الاسم"]
-                  st.session_state.logged_in_id = national_id_input.strip()
+                  st.session_state.logged_in_user = emp_name
+                  st.session_state.logged_in_id = national_id_input
                   st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                  st.session_state.checked_id = None
                   st.rerun()
                 else:
                   st.error(t["error_login"])
-          else:
-            if st.button(t["login_btn"]):
-              st.error(t["error_id"])
 
     except Exception as e:
       st.error(t["error_read"].format(error=e))
