@@ -1,3 +1,4 @@
+import io
 import os
 import pandas as pd
 import streamlit as st
@@ -16,6 +17,7 @@ translations = {
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
         "upload_label": "Upload Employees Excel File",
+        "download_btn": "📥 Download Updated Database (Excel)",
         "remove_btn": "Remove Excel Sheet (Logout Everyone)",
         "upload_success": (
             "Excel file uploaded successfully! Employees can now register &"
@@ -64,6 +66,7 @@ translations = {
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
         "upload_label": "رفع ملف الـ Excel للموظفين",
+        "download_btn": "📥 تحميل قاعدة البيانات المحدثة (Excel)",
         "remove_btn": "حذف ملف الـ Excel (تسجيل خروج الجميع)",
         "upload_success": (
             "تم رفع ملف الـ Excel بنجاح! يمكن للموظفين التسجيل وتسجيل الدخول الآن."
@@ -108,7 +111,6 @@ selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "Engl
 t = translations[selected_lang]
 
 SHARED_FILE = "shared_payroll.xlsx"
-TEMP_FILE = "temp_shared_payroll.xlsx"
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # Initialize session states
@@ -124,31 +126,25 @@ if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
 
 
-# --- Safe Atomic Excel Saver ---
+# --- Safe Direct Excel Saver ---
 def save_excel_safely(df):
-  try:
-    if "الرقم القومي" in df.columns:
-      df["الرقم القومي"] = (
-          df["الرقم القومي"]
-          .astype(str)
-          .str.replace(r"\.0$", "", regex=True)
-          .str.strip()
-      )
-    if "Password" in df.columns:
-      df["Password"] = (
-          df["Password"]
-          .astype(str)
-          .str.replace(r"\.0$", "", regex=True)
-          .str.strip()
-      )
-      df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+  if "الرقم القومي" in df.columns:
+    df["الرقم القومي"] = (
+        df["الرقم القومي"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+  if "Password" in df.columns:
+    df["Password"] = (
+        df["Password"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+    df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
-    df.to_excel(TEMP_FILE, index=False)
-    os.replace(TEMP_FILE, SHARED_FILE)
-  except Exception:
-    if os.path.exists(TEMP_FILE):
-      os.remove(TEMP_FILE)
-    raise
+  df.to_excel(SHARED_FILE, index=False)
 
 
 # --- Helper to load dataframe safely ---
@@ -231,6 +227,19 @@ else:
         )
         status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
         st.sidebar.write(f"• **{name}** ({status_text})")
+
+      # Export / Download Button for Admin
+      st.sidebar.markdown("---")
+      with open(SHARED_FILE, "rb") as f:
+        excel_bytes = f.read()
+      st.sidebar.download_button(
+          label=t["download_btn"],
+          data=excel_bytes,
+          file_name="updated_employee_database.xlsx",
+          mime=(
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ),
+      )
 
     st.sidebar.markdown("---")
     if st.sidebar.button(t["remove_btn"]):
