@@ -2,12 +2,4 @@ streamlit
 pandas
 openpyxl
 xlrd
-def read_excel_file(file_path_or_buffer):
-    try:
-        # Let Pandas automatically detect the correct engine (openpyxl for .xlsx)
-        return pd.read_excel(file_path_or_buffer, dtype=str)
-    except ImportError as e:
-        # This will trigger if openpyxl is missing from requirements.txt
-        raise Exception(f"Missing Excel library. Please add 'openpyxl' to your requirements.txt file. Details: {e}")
-    except Exception as e:
-        raise Exception(f"Could not read the Excel file. Please ensure it is not corrupted. Details: {e}")
+
