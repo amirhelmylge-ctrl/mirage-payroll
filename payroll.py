@@ -1,31 +1,40 @@
 import io
-import os
 import pandas as pd
 import streamlit as st
 
 # Page configuration
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
-# --- GLOBAL SYSTEM FILES ---
-STATUS_FILE = "portal_status.txt"  
+# --- ADMIN PASSWORD ---
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
+
+# --- Initialize Session States ---
+if "admin_authenticated" not in st.session_state:
+    st.session_state.admin_authenticated = False
+if "logged_in_user" not in st.session_state:
+    st.session_state.logged_in_user = None
+if "logged_in_id" not in st.session_state:
+    st.session_state.logged_in_id = None
+if "employee_row_data" not in st.session_state:
+    st.session_state.employee_row_data = None
+if "checked_id" not in st.session_state:
+    st.session_state.checked_id = None
+if "active_df" not in st.session_state:
+    st.session_state.active_df = None
+if "portal_open" not in st.session_state:
+    st.session_state.portal_open = False
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
-    """Returns True ONLY if the active dataframe exists in memory AND the status file says OPEN."""
-    if st.session_state.get("active_df") is None:
-        return False
-    if not os.path.exists(STATUS_FILE):
-        return False
-    try:
-        with open(STATUS_FILE, "r") as f:
-            return f.read().strip() == "OPEN"
-    except Exception:
-        return False
+    """Returns True ONLY if an active dataframe exists in memory AND portal_open is True."""
+    return st.session_state.get("portal_open", False) and st.session_state.get("active_df") is not None
 
-def set_portal_status(is_open: bool):
-    with open(STATUS_FILE, "w") as f:
-        f.write("OPEN" if is_open else "CLOSED")
+# WIPE LOGIN IF PORTAL CLOSED
+if not is_portal_open():
+    st.session_state.logged_in_user = None
+    st.session_state.logged_in_id = None
+    st.session_state.employee_row_data = None
+    st.session_state.checked_id = None
 
 # --- Language Translations Dictionary ---
 translations = {
@@ -126,27 +135,6 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-# --- Initialize User Session States ---
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
-if "logged_in_user" not in st.session_state:
-    st.session_state.logged_in_user = None
-if "logged_in_id" not in st.session_state:
-    st.session_state.logged_in_id = None
-if "employee_row_data" not in st.session_state:
-    st.session_state.employee_row_data = None
-if "checked_id" not in st.session_state:
-    st.session_state.checked_id = None
-if "active_df" not in st.session_state:
-    st.session_state.active_df = None
-
-# --- WIPE SESSION IF LOCKED ---
-if not is_portal_open():
-    st.session_state.logged_in_user = None
-    st.session_state.logged_in_id = None
-    st.session_state.employee_row_data = None
-    st.session_state.checked_id = None
-
 # --- Helper Functions ---
 def read_excel_file(file_path_or_buffer):
     try:
@@ -155,7 +143,6 @@ def read_excel_file(file_path_or_buffer):
         raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
 
 def load_excel_df():
-    """Loads dataframe strictly from active session memory, completely isolating it from local static files."""
     df = st.session_state.get("active_df")
     if df is None:
         return None
@@ -188,7 +175,6 @@ def load_excel_df():
         return None
 
 def save_excel_safely(df):
-    """Updates active session dataframe directly in memory."""
     if "الرقم القومي" in df.columns:
         df["الرقم القومي"] = (
             df["الرقم القومي"]
@@ -227,13 +213,13 @@ if not st.session_state.admin_authenticated:
 else:
     has_file = st.session_state.get("active_df") is not None
     if has_file:
-        current_status = is_portal_open()
+        current_status = st.session_state.portal_open
         master_toggle = st.sidebar.checkbox(
             t["portal_master_toggle"],
             value=current_status,
         )
         if master_toggle != current_status:
-            set_portal_status(master_toggle)
+            st.session_state.portal_open = master_toggle
             st.rerun()
     else:
         st.sidebar.warning("⚠️ Upload an Excel sheet to enable portal access.")
@@ -262,7 +248,7 @@ else:
             df_upload["Password"] = pass_col
 
             save_excel_safely(df_upload)
-            set_portal_status(True)
+            st.session_state.portal_open = True
             
             st.sidebar.success(t["upload_success"])
             st.rerun()
@@ -312,7 +298,7 @@ else:
         st.sidebar.markdown("---")
         if st.sidebar.button(t["remove_btn"]):
             st.session_state.active_df = None
-            set_portal_status(False) 
+            st.session_state.portal_open = False
             st.cache_data.clear()
             st.rerun()
 
