@@ -399,7 +399,6 @@ else:
       st.warning(t["upload_warning"])
     else:
       if st.session_state.checked_id is None:
-        # Use a form so clicking the button or pressing Enter works reliably
         with st.form(key="id_verification_form"):
           national_id_input = st.text_input(t["input_label"])
           submit_id = st.form_submit_button(t["check_id_btn"])
