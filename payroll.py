@@ -7,10 +7,28 @@ import streamlit as st
 st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
 
 # --- GLOBAL SYSTEM FILES ---
-# These files dictate the state for ALL users accessing the app globally.
+# These dictate the state for ALL users accessing the app globally.
 SHARED_FILE = "shared_payroll.xlsx"
-LOCK_FILE = "portal_locked.flag"
+STATUS_FILE = "portal_status.txt"  # NEW: Hard lock file
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
+
+# --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
+def is_portal_open():
+    """Returns True ONLY if the Excel file exists AND the status file explicitly says OPEN."""
+    if not os.path.exists(SHARED_FILE):
+        return False
+    if not os.path.exists(STATUS_FILE):
+        return False
+    try:
+        with open(STATUS_FILE, "r") as f:
+            return f.read().strip() == "OPEN"
+    except Exception:
+        return False
+
+def set_portal_status(is_open: bool):
+    """Writes the exact state to a physical file so it affects all devices globally."""
+    with open(STATUS_FILE, "w") as f:
+        f.write("OPEN" if is_open else "CLOSED")
 
 # --- Language Translations Dictionary ---
 translations = {
@@ -23,24 +41,17 @@ translations = {
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
         "portal_master_toggle": "🔓 Enable Employee Portal Access",
-        "portal_locked_master_warning": (
-            "⚠️ PORTAL LOCKED BY ADMIN: Employee login is currently disabled by"
-            " the administrator."
+        "portal_locked_msg": (
+            "⚠️ PORTAL LOCKED: Employee login is completely disabled. The "
+            "Administrator must upload the database or unlock the portal to grant access."
         ),
         "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
         "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
-        "refresh_btn": "🔄 Refresh Data / Check Updates",
+        "refresh_btn": "🔄 Refresh Data",
         "refresh_success": "Data refreshed successfully!",
-        "upload_success": (
-            "Excel uploaded successfully! Portal unlocked and passwords"
-            " preserved."
-        ),
+        "upload_success": "Excel uploaded successfully! Portal automatically unlocked.",
         "remove_success": "Excel file removed. Portal locked and everyone logged out.",
-        "upload_warning": (
-            "⚠️ PORTAL LOCKED: Please upload the employee database Excel file"
-            " to enable logins."
-        ),
         "input_label": "National ID (الرقم القومي):",
         "check_id_btn": "Next / Verify ID",
         "password_input_label": "Password (كلمة المرور):",
@@ -52,14 +63,8 @@ translations = {
         "back_btn": "← Back",
         "empty_input": "Please fill in all required fields.",
         "pass_mismatch": "Passwords do not match. Please try again.",
-        "pass_taken": (
-            "⚠️ This password is already taken by another employee. Please"
-            " choose a different one."
-        ),
-        "error_id": (
-            "⚠️ National ID not found in the database. Please check and try"
-            " again."
-        ),
+        "pass_taken": "⚠️ This password is already taken. Please choose a different one.",
+        "error_id": "⚠️ National ID not found. Please check and try again.",
         "error_login": "Incorrect Password. Please check and try again.",
         "register_success": "Password created successfully! Welcome.",
         "error_read": "Error reading file: {error}",
@@ -81,22 +86,17 @@ translations = {
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
         "portal_master_toggle": "🔓 تفعيل دخول الموظفين للبوابة",
-        "portal_locked_master_warning": (
-            "⚠️ البوابة مغلقة من قبل المسؤول: تم تعطيل تسجيل الدخول مؤقتاً."
+        "portal_locked_msg": (
+            "⚠️ البوابة مغلقة: تسجيل دخول الموظفين معطل بالكامل. يجب على المسؤول "
+            "رفع قاعدة البيانات أو فتح البوابة للسماح بالدخول."
         ),
         "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
         "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
-        "refresh_btn": "🔄 تحديث البيانات / التحقق من التحديثات",
+        "refresh_btn": "🔄 تحديث البيانات",
         "refresh_success": "تم تحديث البيانات بنجاح!",
-        "upload_success": (
-            "تم رفع الملف بنجاح! تم فتح البوابة والحفاظ على كلمات المرور للموظفين."
-        ),
+        "upload_success": "تم رفع الملف بنجاح! تم فتح البوابة تلقائياً.",
         "remove_success": "تم حذف الملف وإغلاق البوابة وتسجيل خروج الجميع.",
-        "upload_warning": (
-            "⚠️ البوابة مغلقة: يرجى رفع ملف قاعدة بيانات الموظفين لتفعيل"
-            " الدخول."
-        ),
         "input_label": "الرقم القومي (National ID):",
         "check_id_btn": "التالي / التحقق من الرقم",
         "password_input_label": "كلمة المرور (Password):",
@@ -108,12 +108,8 @@ translations = {
         "back_btn": "← رجوع",
         "empty_input": "الرجاء ملء جميع الحقول المطلوبة.",
         "pass_mismatch": "كلمتا المرور غير متطابقتين. يرجى المحاولة مرة أخرى.",
-        "pass_taken": (
-            "⚠️ كلمة المرور هذه مستخدمة من قبل موظف آخر. اختر كلمة مرور فريدة."
-        ),
-        "error_id": (
-            "⚠️ الرقم القومي غير موجود في قاعدة البيانات. يرجى التحقق والمحاولة."
-        ),
+        "pass_taken": "⚠️ كلمة المرور هذه مستخدمة من قبل موظف آخر. اختر كلمة مرور فريدة.",
+        "error_id": "⚠️ الرقم القومي غير موجود. يرجى التحقق والمحاولة.",
         "error_login": "كلمة المرور غير صحيحة. يرجى التحقق.",
         "register_success": "تم إنشاء كلمة المرور بنجاح! أهلاً بك.",
         "error_read": "خطأ في قراءة الملف: {error}",
@@ -133,20 +129,21 @@ st.sidebar.title("🌐 Language / اللغة")
 selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
 t = translations[selected_lang]
 
-# --- Initialize User-Specific Browser Session States ---
+# --- Initialize User Session States ---
+if "admin_authenticated" not in st.session_state:
+    st.session_state.admin_authenticated = False
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
     st.session_state.logged_in_id = None
 if "employee_row_data" not in st.session_state:
     st.session_state.employee_row_data = None
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
 if "checked_id" not in st.session_state:
     st.session_state.checked_id = None
 
-# Wipe user session if they somehow have stale data but portal is globally locked
-if not os.path.exists(SHARED_FILE) or os.path.exists(LOCK_FILE):
+# --- WIPE SESSION IF LOCKED ---
+# If the portal is locked, aggressively wipe any lingering login tokens
+if not is_portal_open():
     st.session_state.logged_in_user = None
     st.session_state.logged_in_id = None
     st.session_state.employee_row_data = None
@@ -210,8 +207,7 @@ def save_excel_safely(df):
     df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
-
-# --- Admin Section (Sidebar) ---
+# --- ADMIN SECTION (Sidebar) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
@@ -225,23 +221,19 @@ if not st.session_state.admin_authenticated:
         else:
             st.sidebar.error(t["admin_access_denied"])
 else:
-    # GLOBAL MASTER SWITCH: Creates or removes a physical lock file
-    is_unlocked_globally = not os.path.exists(LOCK_FILE)
-    master_toggle = st.sidebar.checkbox(
-        t["portal_master_toggle"],
-        value=is_unlocked_globally,
-    )
-    
-    if master_toggle != is_unlocked_globally:
-        if master_toggle:
-            # Unlock it (remove file)
-            if os.path.exists(LOCK_FILE):
-                os.remove(LOCK_FILE)
-        else:
-            # Lock it (create file)
-            with open(LOCK_FILE, "w") as f:
-                f.write("LOCKED")
-        st.rerun()
+    # Portal Master Switch Toggle
+    has_file = os.path.exists(SHARED_FILE)
+    if has_file:
+        current_status = is_portal_open()
+        master_toggle = st.sidebar.checkbox(
+            t["portal_master_toggle"],
+            value=current_status,
+        )
+        if master_toggle != current_status:
+            set_portal_status(master_toggle)
+            st.rerun()
+    else:
+        st.sidebar.warning("⚠️ Upload an Excel sheet to enable portal access.")
 
     uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
 
@@ -269,10 +261,9 @@ else:
 
             save_excel_safely(df_upload)
             
-            # Automatically unlock the portal when a new sheet is uploaded
-            if os.path.exists(LOCK_FILE):
-                os.remove(LOCK_FILE)
-
+            # AUTOMATICALLY unlock the portal when the admin uploads a new sheet
+            set_portal_status(True)
+            
             st.sidebar.success(t["upload_success"])
             st.rerun()
         except Exception as e:
@@ -322,6 +313,7 @@ else:
         if st.sidebar.button(t["remove_btn"]):
             if os.path.exists(SHARED_FILE):
                 os.remove(SHARED_FILE)
+            set_portal_status(False) # Instantly lock it globally
             st.cache_data.clear()
             st.rerun()
 
@@ -330,7 +322,7 @@ else:
         st.rerun()
 
 
-# --- Main Page Layout ---
+# --- MAIN PAGE LAYOUT ---
 col_title, col_refresh = st.columns([4, 1])
 with col_title:
     st.title(t["title"])
@@ -338,7 +330,7 @@ with col_refresh:
     st.write("")
     if st.button(t["refresh_btn"]):
         st.cache_data.clear()
-        if os.path.exists(SHARED_FILE) and st.session_state.get("logged_in_id"):
+        if is_portal_open() and st.session_state.get("logged_in_id"):
             df_refresh = load_excel_df()
             if df_refresh is not None:
                 matched_ref = df_refresh[
@@ -350,24 +342,21 @@ with col_refresh:
         st.success(t["refresh_success"])
         st.rerun()
 
-# --- ABSOLUTE GLOBAL ACCESS CONTROL ---
-# 1. Does the excel file exist on the server?
-is_file_uploaded = os.path.exists(SHARED_FILE)
-# 2. Did the admin explicitly lock the portal?
-is_portal_locked = os.path.exists(LOCK_FILE)
+st.markdown("---")
 
-if not is_file_uploaded:
-    # HARD STOP: No file, no UI.
-    st.warning(t["upload_warning"])
-    st.stop() # Prevents any further rendering below this line
+# --- THE ABSOLUTE GATEKEEPER STOP ---
+# If the portal is not fully open, throw an error and HALT EVERYTHING.
+if not is_portal_open():
+    st.error(t["portal_locked_msg"])
+    st.stop()  # NOTHING below this line will render. The login UI cannot physically appear.
 
-elif is_portal_locked:
-    # HARD STOP: Admin flipped the switch to lock.
-    st.warning(t["portal_locked_master_warning"])
-    st.stop() # Prevents any further rendering below this line
 
-# --- MAIN EMPLOYEE UI (Only reached if File Exists AND Portal is Unlocked) ---
+# ====================================================================
+# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH AN EXCEL FILE REACH HERE
+# ====================================================================
+
 if st.session_state.get("logged_in_user"):
+    # VERIFY USER STILL EXISTS
     df_verify = load_excel_df()
     user_exists = False
     if df_verify is not None:
@@ -387,7 +376,6 @@ if st.session_state.get("logged_in_user"):
         st.rerun()
 
     st.success(t["welcome_banner"].format(name=st.session_state.logged_in_user))
-
     st.markdown(f"### 📋 {t['dashboard_title']}")
     st.info(f"**{t['id_display']}** `{str(st.session_state.get('logged_in_id')).strip()}`")
 
