@@ -13,6 +13,7 @@ ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
+    # STRICT CHECK: Must have both the file AND the status file marked as OPEN
     if not os.path.exists(SHARED_FILE):
         return False
     if not os.path.exists(STATUS_FILE):
@@ -153,7 +154,7 @@ def read_excel_file(file_path_or_buffer):
         raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
 
 def load_excel_df():
-    if not os.path.exists(SHARED_FILE):
+    if not is_portal_open():
         return None
     try:
         df = read_excel_file(SHARED_FILE)
@@ -201,6 +202,7 @@ def save_excel_safely(df):
         df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
 
     df.to_excel(SHARED_FILE, index=False)
+    set_portal_status(True)
     st.cache_data.clear()
 
 # --- ADMIN SECTION (Sidebar) ---
@@ -265,7 +267,7 @@ else:
         except Exception as e:
             st.sidebar.error(t["error_read"].format(error=e))
 
-    if os.path.exists(SHARED_FILE):
+    if os.path.exists(SHARED_FILE) and is_portal_open():
         st.sidebar.markdown("---")
         st.sidebar.subheader(t["admin_employees_header"])
         df_admin = load_excel_df()
@@ -309,6 +311,8 @@ else:
         if st.sidebar.button(t["remove_btn"]):
             if os.path.exists(SHARED_FILE):
                 os.remove(SHARED_FILE)
+            if os.path.exists(STATUS_FILE):
+                os.remove(STATUS_FILE)
             set_portal_status(False) 
             st.cache_data.clear()
             st.rerun()
@@ -340,8 +344,8 @@ with col_refresh:
 
 st.markdown("---")
 
-# --- GATEKEEPER CHECK: BLOCK ENTIRELY IF NO EXCEL OR STATUS IS CLOSED ---
-if not is_portal_open() or not os.path.exists(SHARED_FILE):
+# --- STRICT GATEKEEPER CHECK: STOPS ENTIRE APP UNLESS OPEN & UPLOADED ---
+if not is_portal_open():
     st.error(t["portal_locked_msg"])
     st.stop()  
 
