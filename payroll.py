@@ -19,6 +19,8 @@ translations = {
         "upload_label": "Upload Employees Excel File",
         "download_btn": "📥 Download Updated Database (Secure)",
         "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
+        "refresh_btn": "🔄 Refresh Data / Check Updates",
+        "refresh_success": "Data refreshed successfully!",
         "upload_success": (
             "Excel uploaded successfully! Passwords safely preserved."
         ),
@@ -69,6 +71,8 @@ translations = {
         "upload_label": "رفع ملف الـ Excel للموظفين",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
         "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
+        "refresh_btn": "🔄 تحديث البيانات / التحقق من التحديثات",
+        "refresh_success": "تم تحديث البيانات بنجاح!",
         "upload_success": (
             "تم رفع الملف بنجاح! تم الحفاظ على كلمات المرور للموظفين."
         ),
@@ -232,7 +236,6 @@ else:
       df_upload = pd.read_excel(uploaded_file, dtype=str)
       df_upload.columns = df_upload.columns.str.strip()
 
-      # Smart Password Retention across updates
       existing_passwords = {}
       if os.path.exists(SHARED_FILE):
         df_old = pd.read_excel(SHARED_FILE, dtype=str)
@@ -280,7 +283,6 @@ else:
             st.info("No password set yet.")
 
       st.sidebar.markdown("---")
-      # Secure Export: Strip Password column so exported files never leak passwords
       df_export = df_admin.copy()
       if "Password" in df_export.columns:
         df_export = df_export.drop(columns=["Password"])
@@ -316,7 +318,25 @@ else:
     st.rerun()
 
 # --- Main Page Layout ---
-st.title(t["title"])
+col_title, col_refresh = st.columns([4, 1])
+with col_title:
+  st.title(t["title"])
+with col_refresh:
+  st.write("")  # spacing
+  if st.button(t["refresh_btn"]):
+    st.cache_data.clear()
+    if st.session_state.logged_in_id and is_database_active():
+      # Keep logged-in user data updated instantly if data changed
+      df_refresh = load_excel_df()
+      if df_refresh is not None:
+        matched_ref = df_refresh[
+            df_refresh["الرقم القومي"].astype(str).str.strip()
+            == str(st.session_state.logged_in_id).strip()
+        ]
+        if not matched_ref.empty:
+          st.session_state.employee_row_data = matched_ref.iloc[0].to_dict()
+    st.success(t["refresh_success"])
+    st.rerun()
 
 # ABSOLUTE SECURITY CHECK: Block everything if database is not active
 if not is_database_active():
