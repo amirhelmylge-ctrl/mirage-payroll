@@ -26,7 +26,6 @@ if "portal_open" not in st.session_state:
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_portal_open():
-    """Returns True ONLY if an active dataframe exists in memory AND portal_open is True."""
     return st.session_state.get("portal_open", False) and st.session_state.get("active_df") is not None
 
 # WIPE LOGIN IF PORTAL CLOSED
@@ -131,8 +130,7 @@ translations = {
 }
 
 # --- Language Switcher in Sidebar ---
-st.sidebar.title("🌐 Language / اللغة")
-selected_lang = st.sidebar.selectbox("Choose Language", ["العربية", "English"])
+selected_lang = st.sidebar.selectbox("Choose Language / اللغة", ["العربية", "English"])
 t = translations[selected_lang]
 
 # --- Helper Functions ---
@@ -392,9 +390,9 @@ else:
             st.error(t["error_read"].format(error="Could not load data."))
         else:
             if st.session_state.get("checked_id") is None:
-                with st.form(key="id_verification_form"):
-                    national_id_input = st.text_input(t["input_label"])
-                    submit_id = st.form_submit_button(t["check_id_btn"])
+                # Removed form wrapper to eliminate form state conflict on login button click
+                national_id_input = st.text_input(t["input_label"], key="national_id_field")
+                submit_id = st.button(t["check_id_btn"])
 
                 if submit_id:
                     if not national_id_input.strip():
@@ -424,45 +422,43 @@ else:
 
                     if current_pass == "" or current_pass.lower() == "nan":
                         st.info("✨ First time here? Please create a secure, unique password for your account.")
-                        with st.form(key="register_form"):
-                            new_pass = st.text_input(t["new_password_label"], type="password")
-                            confirm_pass = st.text_input(t["confirm_password_label"], type="password")
-                            submit_register = st.form_submit_button(t["register_btn"])
+                        new_pass = st.text_input(t["new_password_label"], type="password", key="new_pass_field")
+                        confirm_pass = st.text_input(t["confirm_password_label"], type="password", key="confirm_pass_field")
+                        submit_register = st.button(t["register_btn"])
 
-                            if submit_register:
-                                if not new_pass or not confirm_pass:
-                                    st.warning(t["empty_input"])
-                                elif new_pass != confirm_pass:
-                                    st.error(t["pass_mismatch"])
+                        if submit_register:
+                            if not new_pass or not confirm_pass:
+                                st.warning(t["empty_input"])
+                            elif new_pass != confirm_pass:
+                                st.error(t["pass_mismatch"])
+                            else:
+                                existing_passes = df["Password"].astype(str).str.strip().tolist()
+                                if new_pass.strip() in existing_passes:
+                                    st.error(t["pass_taken"])
                                 else:
-                                    existing_passes = df["Password"].astype(str).str.strip().tolist()
-                                    if new_pass.strip() in existing_passes:
-                                        st.error(t["pass_taken"])
-                                    else:
-                                        df.at[idx, "Password"] = new_pass.strip()
-                                        save_excel_safely(df)
-                                        st.session_state.logged_in_user = emp_name
-                                        st.session_state.logged_in_id = national_id_input
-                                        st.session_state.employee_row_data = matched.loc[idx].to_dict()
-                                        st.session_state.checked_id = None
-                                        st.success(t["register_success"])
-                                        st.rerun()
-                    else:
-                        with st.form(key="login_form"):
-                            password_input = st.text_input(t["password_input_label"], type="password")
-                            submit_login = st.form_submit_button(t["login_btn"])
-                            
-                            if submit_login:
-                                if not password_input:
-                                    st.warning(t["empty_input"])
-                                elif password_input.strip() == current_pass:
+                                    df.at[idx, "Password"] = new_pass.strip()
+                                    save_excel_safely(df)
                                     st.session_state.logged_in_user = emp_name
                                     st.session_state.logged_in_id = national_id_input
                                     st.session_state.employee_row_data = matched.loc[idx].to_dict()
                                     st.session_state.checked_id = None
+                                    st.success(t["register_success"])
                                     st.rerun()
-                                else:
-                                    st.error(t["error_login"])
+                    else:
+                        password_input = st.text_input(t["password_input_label"], type="password", key="password_input_field")
+                        submit_login = st.button(t["login_btn"])
+                        
+                        if submit_login:
+                            if not password_input:
+                                st.warning(t["empty_input"])
+                            elif password_input.strip() == current_pass:
+                                st.session_state.logged_in_user = emp_name
+                                st.session_state.logged_in_id = national_id_input
+                                st.session_state.employee_row_data = matched.loc[idx].to_dict()
+                                st.session_state.checked_id = None
+                                st.rerun()
+                            else:
+                                st.error(t["error_login"])
 
     except Exception as e:
         st.error(t["error_read"].format(error=e))
