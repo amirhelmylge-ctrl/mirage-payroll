@@ -1,4 +1,3 @@
-import io
 import os
 import pandas as pd
 import streamlit as st
@@ -126,39 +125,17 @@ if "checked_id" not in st.session_state:
   st.session_state.checked_id = None
 
 
-# --- Safe Direct Excel Saver ---
-def save_excel_safely(df):
-  if "الرقم القومي" in df.columns:
-    df["الرقم القومي"] = (
-        df["الرقم القومي"]
-        .astype(str)
-        .str.replace(r"\.0$", "", regex=True)
-        .str.strip()
-    )
-  if "Password" in df.columns:
-    df["Password"] = (
-        df["Password"]
-        .astype(str)
-        .str.replace(r"\.0$", "", regex=True)
-        .str.strip()
-    )
-    df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
-
-  df.to_excel(SHARED_FILE, index=False)
-
-
-# --- Helper to load dataframe safely ---
-def load_excel_df():
+# --- High-Speed Cached DataFrame Loader ---
+@st.cache_data(ttl=2)
+def load_excel_cached(file_mtime):
   if not os.path.exists(SHARED_FILE):
     return None
   try:
     df = pd.read_excel(SHARED_FILE, dtype=str)
     df.columns = df.columns.str.strip()
 
-    updated = False
     if "Password" not in df.columns:
       df["Password"] = ""
-      updated = True
     else:
       df["Password"] = (
           df["Password"]
@@ -178,12 +155,40 @@ def load_excel_df():
           .str.strip()
       )
 
-    if updated:
-      save_excel_safely(df)
-
     return df
   except Exception:
     return None
+
+
+def get_file_mtime():
+  if os.path.exists(SHARED_FILE):
+    return os.path.getmtime(SHARED_FILE)
+  return 0
+
+
+def load_excel_df():
+  return load_excel_cached(get_file_mtime())
+
+
+def save_excel_safely(df):
+  if "الرقم القومي" in df.columns:
+    df["الرقم القومي"] = (
+        df["الرقم القومي"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+  if "Password" in df.columns:
+    df["Password"] = (
+        df["Password"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+    df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+
+  df.to_excel(SHARED_FILE, index=False)
+  st.cache_data.clear()
 
 
 # --- Admin Section (Sidebar with Password Protection) ---
@@ -228,7 +233,6 @@ else:
         status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
         st.sidebar.write(f"• **{name}** ({status_text})")
 
-      # Export / Download Button for Admin
       st.sidebar.markdown("---")
       with open(SHARED_FILE, "rb") as f:
         excel_bytes = f.read()
@@ -246,6 +250,7 @@ else:
       if os.path.exists(SHARED_FILE):
         os.remove(SHARED_FILE)
       st.session_state.checked_id = None
+      st.cache_data.clear()
       st.sidebar.success(t["remove_success"])
       st.rerun()
 
@@ -253,7 +258,6 @@ else:
     st.session_state.admin_authenticated = False
     st.rerun()
 
-# Check globally if the shared file exists
 file_exists = os.path.exists(SHARED_FILE)
 
 if not file_exists and st.session_state.logged_in_user is not None:
@@ -312,7 +316,6 @@ else:
       if df is None:
         st.error("Error reading database file.")
       else:
-        # Step 1: Enter ID and click Verify Button
         if st.session_state.checked_id is None:
           national_id_input = st.text_input(t["input_label"])
 
@@ -334,7 +337,6 @@ else:
               else:
                 st.error(t["error_id"])
         else:
-          # Step 2: ID is verified, show registration or login depending on password status
           national_id_input = st.session_state.checked_id
           matched = df[
               df["الرقم القومي"].astype(str).str.strip()
@@ -352,7 +354,6 @@ else:
               st.session_state.checked_id = None
               st.rerun()
 
-            # SCENARIO A: No password -> Create password form & direct login
             if current_pass == "" or current_pass.lower() == "nan":
               st.info(
                   "✨ First time here? Please create a secure, unique password"
@@ -379,7 +380,6 @@ else:
                   else:
                     df.at[idx, "Password"] = new_pass.strip()
                     save_excel_safely(df)
-                    # Automatically log them in right after registration!
                     st.session_state.logged_in_user = emp_name
                     st.session_state.logged_in_id = national_id_input
                     st.session_state.employee_row_data = matched.loc[
@@ -389,7 +389,6 @@ else:
                     st.success(t["register_success"])
                     st.rerun()
 
-            # SCENARIO B: Password exists -> Direct login prompt
             else:
               password_input = st.text_input(
                   t["password_input_label"], type="password", key="login_p"
