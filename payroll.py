@@ -143,6 +143,23 @@ if "checked_id" not in st.session_state:
 # --- Safe Atomic Excel Saver ---
 def save_excel_safely(df):
   try:
+    # Ensure ID and Password are saved cleanly as strings
+    if "الرقم القومي" in df.columns:
+      df["الرقم القومي"] = (
+          df["الرقم القومي"]
+          .astype(str)
+          .str.replace(r"\.0$", "", regex=True)
+          .str.strip()
+      )
+    if "Password" in df.columns:
+      df["Password"] = (
+          df["Password"]
+          .astype(str)
+          .str.replace(r"\.0$", "", regex=True)
+          .str.strip()
+      )
+      df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+
     df.to_excel(TEMP_FILE, index=False)
     os.replace(TEMP_FILE, SHARED_FILE)
   except Exception:
@@ -156,16 +173,37 @@ def load_excel_df():
   if not os.path.exists(SHARED_FILE):
     return None
   try:
-    df = pd.read_excel(SHARED_FILE)
+    df = pd.read_excel(SHARED_FILE, dtype=str)
     df.columns = df.columns.str.strip()
 
     updated = False
     if "Password" not in df.columns:
       df["Password"] = ""
       updated = True
+    else:
+      df["Password"] = (
+          df["Password"]
+          .fillna("")
+          .astype(str)
+          .str.replace(r"\.0$", "", regex=True)
+          .str.strip()
+      )
+      df.loc[df["Password"].isin(["nan", "None", ""]), "Password"] = ""
+
     if "Status" not in df.columns:
       df["Status"] = "Pending"
       updated = True
+    else:
+      df["Status"] = df["Status"].fillna("Pending").astype(str).str.strip()
+
+    if "الرقم القومي" in df.columns:
+      df["الرقم القومي"] = (
+          df["الرقم القومي"]
+          .fillna("")
+          .astype(str)
+          .str.replace(r"\.0$", "", regex=True)
+          .str.strip()
+      )
 
     if updated:
       save_excel_safely(df)
@@ -195,7 +233,7 @@ else:
 
   if uploaded_file is not None:
     try:
-      df_upload = pd.read_excel(uploaded_file)
+      df_upload = pd.read_excel(uploaded_file, dtype=str)
       df_upload.columns = df_upload.columns.str.strip()
       df_upload["Password"] = ""
       df_upload["Status"] = "Pending"
@@ -310,12 +348,16 @@ else:
             if not national_id_input.strip():
               st.warning(t["empty_input"])
             else:
+              clean_input_id = (
+                  national_id_input.strip()
+                  .replace(".0", "")
+                  .replace("\t", "")
+              )
               matched = df[
-                  df["الرقم القومي"].astype(str).str.strip()
-                  == national_id_input.strip()
+                  df["الرقم القومي"].astype(str).str.strip() == clean_input_id
               ]
               if not matched.empty:
-                st.session_state.checked_id = national_id_input.strip()
+                st.session_state.checked_id = clean_input_id
                 st.rerun()
               else:
                 st.error(t["error_id"])
