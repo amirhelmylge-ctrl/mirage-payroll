@@ -6,6 +6,20 @@ import streamlit as st
 # Page configuration
 st.set_page_config(page_title="Mirage Employee Portal", page_icon="🔐", layout="wide")
 
+# --- HIDE STREAMLIT BRANDING, GITHUB, SHARE, & MANAGE APP BUTTONS ---
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    .viewerBadge_container__1QSob {display: none !important;}
+    [data-testid="stDecoration"] {display: none;}
+    [data-testid="stStatusWidget"] {display: none;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # --- GLOBAL SYSTEM FILES ---
 SHARED_FILE = "shared_payroll.xlsx"
 STATUS_FILE = "portal_status.txt"  
@@ -208,7 +222,7 @@ def save_excel_safely(df):
     df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
-# --- ADMIN SECTION (Sidebar) ---
+# --- ADMIN SECTION (Sidebar - Locked Behind Admin Login) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
@@ -224,6 +238,8 @@ if not st.session_state.admin_logged_in:
                 st.rerun()
             else:
                 st.sidebar.error(t["admin_access_denied"])
+    
+    st.sidebar.info("🔒 Administrative features and controls are hidden until authorized login.")
 else:
     has_file = os.path.exists(SHARED_FILE)
     if has_file:
@@ -484,7 +500,6 @@ else:
                             if not password_input:
                                 st.warning(t["empty_input"])
                             elif password_input.strip() == current_pass:
-                                st.session_state.logged_in_user = emp_name
                                 st.session_state.logged_in_id = national_id_input
                                 st.session_state.employee_row_data = matched.loc[idx].to_dict()
                                 st.session_state.checked_id = None
