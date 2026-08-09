@@ -405,19 +405,18 @@ if st.session_state.get("logged_in_user"):
 
         df_display = pd.DataFrame(table_data)
         
-        # Center-align text in dataframe cells and headers
+        # Center-align text in static table cells and headers
         st.markdown("""
         <style>
-            [data-testid="stDataFrame"] div, 
-            [data-testid="stDataFrame"] th, 
-            [data-testid="stDataFrame"] td {
+            [data-testid="stTable"] th, 
+            [data-testid="stTable"] td {
                 text-align: center !important;
                 justify-content: center !important;
             }
         </style>
         """, unsafe_allow_html=True)
 
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        st.table(df_display)
 
     st.markdown("---")
     if st.button(t["logout_btn"]):
