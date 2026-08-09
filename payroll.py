@@ -11,18 +11,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CLEAN CSS OVERRIDES (Restores Sidebar, Hides Standard Menu/Footer) ---
+# --- SURGICAL CSS: REMOVE MANAGE APP & TOP TOOLBAR / KEEP SIDEBAR PANEL INTACT ---
 hide_streamlit_style = """
     <style>
-    /* Hide top right standard menu and footer without breaking the sidebar toggle */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stDeployButton {display:none !important;}
-    
-    /* Ensure sidebar remains clearly styled and visible */
+    /* 1. HIDE BOTTOM-RIGHT 'MANAGE APP' BUTTON & FOOTER */
+    [data-testid="manage-app-button"],
+    button[title="Manage app"],
+    .stAppViewerFooter,
+    div[data-testid="stAppViewerFooter"],
+    div[class*="viewerBadge"],
+    footer {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* 2. HIDE TOP-RIGHT TOOLBAR (Share, Edit, Star, GitHub) & DEPLOY BUTTONS */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    #MainMenu {
+        visibility: hidden !important;
+    }
+    .stDeployButton {
+        display: none !important;
+    }
+
+    /* 3. EXPLICITLY RESTORE SIDEBAR & SIDEBAR TOGGLE CONTROL BUTTON */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        z-index: 100 !important;
+    }
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        z-index: 999999 !important;
+    }
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-        min-width: 320px;
+        background-color: #f9f9f9;
+        display: flex !important;
     }
     </style>
 """
