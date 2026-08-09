@@ -2,7 +2,6 @@ import io
 import os
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 # Page configuration - FORCE SIDEBAR OPEN BY DEFAULT
 st.set_page_config(
@@ -12,78 +11,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS OVERRIDES ---
+# --- CLEAN CSS OVERRIDES (Restores Sidebar, Hides Standard Menu/Footer) ---
 hide_streamlit_style = """
     <style>
-    /* Hide top-right toolbar (Share, Edit, GitHub, Star) */
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    #MainMenu {
-        visibility: hidden !important;
-    }
-    .stDeployButton {
-        display: none !important;
-    }
-
-    /* Force-hide Manage App button via CSS selectors */
-    [data-testid="manage-app-button"],
-    button[title="Manage app"],
-    .stAppViewerFooter,
-    div[class*="viewerBadge"],
-    div[class*="stAppViewerFooter"],
-    footer {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Keep Sidebar & Toggle Button accessible */
-    header[data-testid="stHeader"] {
-        background: transparent !important;
-    }
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        z-index: 999999 !important;
-    }
+    /* Hide top right standard menu and footer without breaking the sidebar toggle */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display:none !important;}
+    
+    /* Ensure sidebar remains clearly styled and visible */
     [data-testid="stSidebar"] {
-        background-color: #f9f9f9;
-        display: flex !important;
+        background-color: #f8f9fa;
+        min-width: 320px;
     }
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-# --- JAVASCRIPT HARD-REMOVE FOR "MANAGE APP" BUTTON ---
-components.html(
-    """
-    <script>
-    const removeManageApp = () => {
-        const doc = window.parent.document;
-        // Target manage app button & floating viewer badge
-        const selectors = [
-            '[data-testid="manage-app-button"]',
-            'button[title="Manage app"]',
-            '.stAppViewerFooter',
-            'div[class*="viewerBadge"]',
-            '[data-testid="stToolbar"]'
-        ];
-        selectors.forEach(selector => {
-            const elements = doc.querySelectorAll(selector);
-            elements.forEach(el => {
-                if (el) el.style.setProperty('display', 'none', 'important');
-            });
-        });
-    };
-    // Run immediately and monitor DOM changes
-    removeManageApp();
-    setInterval(removeManageApp, 500);
-    </script>
-    """,
-    height=0,
-    width=0,
-)
 
 # --- GLOBAL SYSTEM FILES ---
 SHARED_FILE = "shared_payroll.xlsx"
