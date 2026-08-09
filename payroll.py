@@ -45,7 +45,7 @@ def set_portal_status(is_open: bool):
 # --- Language Translations Dictionary ---
 translations = {
     "English": {
-        "title": "🔐 Mirage Employee Portal",
+        "title": "🔐 تفاصيل الراتب الشهرية لموظيفين شركة ميراج",
         "subtitle": "Please enter your National ID to proceed.",
         "admin_header": "Admin Control Panel",
         "admin_pass_label": "Enter Admin Password:",
@@ -90,7 +90,7 @@ translations = {
         "reset_success": "Password successfully reset for {name}.",
     },
     "العربية": {
-        "title": "🔐 بوابة موظفي شركة ميراج",
+        "title": "🔐 تفاصيل الراتب الشهرية لموظيفين شركة ميراج",
         "subtitle": "الرجاء إدخال الرقم القومي للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
         "admin_pass_label": "أدخل كلمة مرور المسؤول:",
