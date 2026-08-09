@@ -222,7 +222,7 @@ def save_excel_safely(df):
     df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
-# --- ADMIN SECTION (Sidebar - Clean/Plain Login First) ---
+# --- ADMIN SECTION (Sidebar - Locked Behind Admin Login) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
@@ -238,6 +238,8 @@ if not st.session_state.admin_logged_in:
                 st.rerun()
             else:
                 st.sidebar.error(t["admin_access_denied"])
+    
+    st.sidebar.info("🔒 Administrative features and controls are hidden until authorized login.")
 else:
     has_file = os.path.exists(SHARED_FILE)
     if has_file:
