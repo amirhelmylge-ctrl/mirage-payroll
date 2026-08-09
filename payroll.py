@@ -404,6 +404,19 @@ if st.session_state.get("logged_in_user"):
             table_data.append({t["table_col_key"]: str(col_name), t["table_col_val"]: display_val})
 
         df_display = pd.DataFrame(table_data)
+        
+        # Center-align text in dataframe cells and headers
+        st.markdown("""
+        <style>
+            [data-testid="stDataFrame"] div, 
+            [data-testid="stDataFrame"] th, 
+            [data-testid="stDataFrame"] td {
+                text-align: center !important;
+                justify-content: center !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     st.markdown("---")
