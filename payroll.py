@@ -42,102 +42,102 @@ def set_portal_status(is_open: bool):
     with open(STATUS_FILE, "w") as f:
         f.write("OPEN" if is_open else "CLOSED")
 
-# --- Language Translations Dictionary ---
+# --- Language Translations Dictionary with Icons ---
 translations = {
     "English": {
         "title": "🔐 تفاصيل الرواتب الشهرية لافراد شركة ميراج",
-        "subtitle": "Please enter your National ID to proceed.",
-        "admin_header": "Admin Control Panel",
-        "admin_pass_label": "Enter Admin Password:",
-        "admin_pass_btn": "Unlock Admin Panel",
-        "admin_access_denied": "Incorrect Admin Password.",
-        "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
+        "subtitle": "🆔 Please enter your National ID to proceed.",
+        "admin_header": "🛠️ Admin Control Panel",
+        "admin_pass_label": "🔑 Enter Admin Password:",
+        "admin_pass_btn": "🔓 Unlock Admin Panel",
+        "admin_access_denied": "❌ Incorrect Admin Password.",
+        "admin_panel_unlocked": "✨ Admin Panel Unlocked Successfully!",
         "portal_master_toggle": "🔓 Enable Employee Portal Access",
         "portal_locked_msg": (
             "⚠️ PORTAL LOCKED: Employee login is completely disabled. The "
             "Administrator must be logged in and unlock the portal to grant access."
         ),
-        "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
+        "upload_label": "📁 Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
-        "remove_btn": "Remove Excel Sheet (Lock Portal & Wipe Data)",
+        "remove_btn": "🗑️ Remove Excel Sheet (Lock Portal & Wipe Data)",
         "refresh_btn": "🔄 Refresh Data",
-        "refresh_success": "Data refreshed successfully!",
-        "upload_success": "Excel uploaded successfully! Portal automatically unlocked.",
-        "remove_success": "Excel file removed. Portal locked and data wiped.",
-        "input_label": "National ID (الرقم القومي):",
-        "check_id_btn": "Next / Verify ID",
-        "password_input_label": "Password (كلمة المرور):",
-        "new_password_label": "Create Your Password (أنشئ كلمة المرور):",
-        "confirm_password_label": "Confirm Password (تأكيد كلمة المرور):",
-        "register_btn": "Register & Login",
-        "login_btn": "Login",
-        "logout_btn": "Logout",
-        "back_btn": "← Back",
-        "empty_input": "Please fill in all required fields.",
-        "pass_mismatch": "Passwords do not match. Please try again.",
+        "refresh_success": "✅ Data refreshed successfully!",
+        "upload_success": "✅ Excel uploaded successfully! Portal automatically unlocked.",
+        "remove_success": "🗑️ Excel file removed. Portal locked and data wiped.",
+        "input_label": "🆔 National ID (الرقم القومي):",
+        "check_id_btn": "➡️ Next / Verify ID",
+        "password_input_label": "🔒 Password (كلمة المرور):",
+        "new_password_label": "✨ Create Your Password (أنشئ كلمة المرور):",
+        "confirm_password_label": "✔️ Confirm Password (تأكيد كلمة المرور):",
+        "register_btn": "🚀 Register & Login",
+        "login_btn": "🔑 Login",
+        "logout_btn": "🚪 Logout",
+        "back_btn": "⬅️ Back",
+        "empty_input": "⚠️ Please fill in all required fields.",
+        "pass_mismatch": "❌ Passwords do not match. Please try again.",
         "pass_taken": "⚠️ This password is already taken. Please choose a different one.",
         "error_id": "⚠️ National ID not found. Please check and try again.",
-        "error_login": "Incorrect Password. Please check and try again.",
-        "register_success": "Password created successfully! Welcome.",
-        "error_read": "Error reading file: {error}",
-        "dashboard_title": "تفاصيل الراتب الشهري والمستحقات المالية",
-        "welcome_banner": "Welcome, {name}!",
-        "id_display": "National ID:",
-        "table_col_key": "Field / Column",
-        "table_col_val": "Value",
+        "error_login": "❌ Incorrect Password. Please check and try again.",
+        "register_success": "🎉 Password created successfully! Welcome.",
+        "error_read": "❌ Error reading file: {error}",
+        "dashboard_title": "📊 تفاصيل الراتب الشهري والمستحقات المالية",
+        "welcome_banner": "👋 Welcome, {name}!",
+        "id_display": "🆔 National ID:",
+        "table_col_key": "📋 Field / Column",
+        "table_col_val": "💎 Value",
         "admin_employees_header": "👥 Employee Management & Passwords",
-        "reset_pass_btn": "Reset Password",
-        "reset_success": "Password successfully reset for {name}.",
+        "reset_pass_btn": "🔄 Reset Password",
+        "reset_success": "✅ Password successfully reset for {name}.",
     },
     "العربية": {
         "title": "🔐 تفاصيل الرواتب الشهرية لافراد شركة ميراج",
-        "subtitle": "الرجاء إدخال الرقم القومي للمتابعة.",
-        "admin_header": "لوحة تحكم المسؤول (Admin)",
-        "admin_pass_label": "أدخل كلمة مرور المسؤول:",
-        "admin_pass_btn": "فتح لوحة المسؤول",
-        "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
-        "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
+        "subtitle": "🆔 الرجاء إدخال الرقم القومي للمتابعة.",
+        "admin_header": "🛠️ لوحة تحكم المسؤول (Admin)",
+        "admin_pass_label": "🔑 أدخل كلمة مرور المسؤول:",
+        "admin_pass_btn": "🔓 فتح لوحة المسؤول",
+        "admin_access_denied": "❌ كلمة مرور المسؤول غير صحيحة.",
+        "admin_panel_unlocked": "✨ تم فتح لوحة المسؤول بنجاح!",
         "portal_master_toggle": "🔓 تفعيل دخول الموظفين للبوابة",
         "portal_locked_msg": (
             "⚠️ البوابة مغلقة: تسجيل دخول الموظفين معطل بالكامل. يجب أن يكون المسؤول "
             "مسجلاً للدخول ويفعل البوابة للسماح بالوصول."
         ),
-        "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
+        "upload_label": "📁 رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
-        "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة ومسح البيانات)",
+        "remove_btn": "🗑️ حذف ملف الـ Excel (إغلاق البوابة ومسح البيانات)",
         "refresh_btn": "🔄 تحديث البيانات",
-        "refresh_success": "تم تحديث البيانات بنجاح!",
-        "upload_success": "تم رفع الملف بنجاح! تم فتح البوابة تلقائياً.",
-        "remove_success": "تم حذف الملف وإغلاق البوابة ومسح البيانات.",
-        "input_label": "الرقم القومي (National ID):",
-        "check_id_btn": "التالي / التحقق من الرقم",
-        "password_input_label": "كلمة المرور (Password):",
-        "new_password_label": "أنشئ كلمة المرور الخاصة بك:",
-        "confirm_password_label": "تأكيد كلمة المرور:",
-        "register_btn": "التسجيل والدخول",
-        "login_btn": "تسجيل الدخول",
-        "logout_btn": "تسجيل الخروج",
-        "back_btn": "← رجوع",
-        "empty_input": "الرجاء ملء جميع الحقول المطلوبة.",
-        "pass_mismatch": "كلمتا المرور غير متطابقتين. يرجى المحاولة مرة أخرى.",
+        "refresh_success": "✅ تم تحديث البيانات بنجاح!",
+        "upload_success": "✅ تم رفع الملف بنجاح! تم فتح البوابة تلقائياً.",
+        "remove_success": "🗑️ تم حذف الملف وإغلاق البوابة ومسح البيانات.",
+        "input_label": "🆔 الرقم القومي (National ID):",
+        "check_id_btn": "➡️ التالي / التحقق من الرقم",
+        "password_input_label": "🔒 كلمة المرور (Password):",
+        "new_password_label": "✨ أنشئ كلمة المرور الخاصة بك:",
+        "confirm_password_label": "✔️ تأكيد كلمة المرور:",
+        "register_btn": "🚀 التسجيل والدخول",
+        "login_btn": "🔑 تسجيل الدخول",
+        "logout_btn": "🚪 تسجيل الخروج",
+        "back_btn": "⬅️ رجوع",
+        "empty_input": "⚠️ الرجاء ملء جميع الحقول المطلوبة.",
+        "pass_mismatch": "❌ كلمتا المرور غير متطابقتين. يرجى المحاولة مرة أخرى.",
         "pass_taken": "⚠️ كلمة المرور هذه مستخدمة من قبل موظف آخر. اختر كلمة مرور فريدة.",
         "error_id": "⚠️ الرقم القومي غير موجود. يرجى التحقق والمحاولة.",
-        "error_login": "كلمة المرور غير صحيحة. يرجى التحقق.",
-        "register_success": "تم إنشاء كلمة المرور بنجاح! أهلاً بك.",
-        "error_read": "خطأ في قراءة الملف: {error}",
-        "dashboard_title": "تفاصيل الراتب الشهري والمستحقات المالية",
-        "welcome_banner": "أهلاً بك يا {name}!",
-        "id_display": "الرقم القومي:",
-        "table_col_key": "الحقل / العمود",
-        "table_col_val": "القيمة",
+        "error_login": "❌ كلمة المرور غير صحيحة. يرجى التحقق.",
+        "register_success": "🎉 تم إنشاء كلمة المرور بنجاح! أهلاً بك.",
+        "error_read": "❌ خطأ في قراءة الملف: {error}",
+        "dashboard_title": "📊 تفاصيل الراتب الشهري والمستحقات المالية",
+        "welcome_banner": "👋 أهلاً بك يا {name}!",
+        "id_display": "🆔 الرقم القومي:",
+        "table_col_key": "📋 الحقل / العمود",
+        "table_col_val": "💎 القيمة",
         "admin_employees_header": "👥 إدارة الموظفين وكلمات المرور",
-        "reset_pass_btn": "إعادة تعيين كلمة المرور",
-        "reset_success": "تم إعادة تعيين كلمة المرور للموظف {name} بنجاح.",
+        "reset_pass_btn": "🔄 إعادة تعيين كلمة المرور",
+        "reset_success": "✅ تم إعادة تعيين كلمة المرور للموظف {name} بنجاح.",
     },
 }
 
 # --- Language Switcher in Sidebar ---
-selected_lang = st.sidebar.selectbox("Choose Language / اللغة", ["العربية", "English"])
+selected_lang = st.sidebar.selectbox("🌐 Choose Language / اللغة", ["العربية", "English"])
 t = translations[selected_lang]
 
 # --- Helper Functions ---
@@ -288,8 +288,8 @@ else:
                 has_pass = current_pwd not in ["", "nan", "None"]
                 status_text = "🔒 Registered" if has_pass else "⏳ Not Registered"
 
-                with st.sidebar.expander(f"{name} ({status_text})"):
-                    st.write(f"ID: `{nid}`")
+                with st.sidebar.expander(f"👤 {name} ({status_text})"):
+                    st.write(f"🆔 ID: `{nid}`")
                     if has_pass:
                         if st.button(t["reset_pass_btn"], key=f"reset_{nid}_{idx}"):
                             df_admin.at[idx, "Password"] = ""
@@ -297,7 +297,7 @@ else:
                             st.success(t["reset_success"].format(name=name))
                             st.rerun()
                     else:
-                        st.info("No password set yet.")
+                        st.info("ℹ️ No password set yet.")
 
             st.sidebar.markdown("---")
             df_export = df_admin.copy()
@@ -332,7 +332,7 @@ else:
         st.cache_data.clear()
         st.rerun()
 
-    if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
+    if st.sidebar.button("🔒 Lock Admin Panel / قفل لوحة المسؤول"):
         st.session_state.admin_logged_in = False
         st.cache_data.clear()
         st.rerun()
