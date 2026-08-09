@@ -11,17 +11,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- HIDE STREAMLIT BRANDING & DEPLOY BUTTONS (WITHOUT HIDING SIDEBAR TOGGLE) ---
+# --- HIDE TOP TOOLBAR (SHARE, GITHUB, EDIT), MANAGE APP BUTTON & BRANDING ---
 hide_streamlit_style = """
     <style>
+    /* Hide top right toolbar (Share, Edit, Star, GitHub icons) */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
+    /* Hide "Manage app" button and Streamlit Cloud status widgets */
+    [data-testid="manage-app-button"],
+    button[title="Manage app"],
+    .stAppViewerFooter,
+    div[class*="viewerBadge"],
+    .viewerBadge_container__1QSob,
+    [data-testid="stStatusWidget"],
+    .stDeployButton {
+        display: none !important;
+    }
+
+    /* Hide standard footer & main menu */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .stDeployButton {display:none !important;}
-    .viewerBadge_container__1QSob {display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
     
-    /* Ensure Sidebar remains accessible and clean */
+    /* Ensure Sidebar styling remains clean */
     [data-testid="stSidebar"] {
         background-color: #f9f9f9;
     }
