@@ -222,7 +222,7 @@ def save_excel_safely(df):
     df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
-# --- ADMIN SECTION (Sidebar - Locked Behind Admin Login) ---
+# --- ADMIN SECTION (Sidebar - Clean/Plain Login First) ---
 st.sidebar.markdown("---")
 st.sidebar.header(t["admin_header"])
 
