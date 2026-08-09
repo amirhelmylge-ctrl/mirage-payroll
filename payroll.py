@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-# Page configuration - FORCING SIDEBAR TO BE EXPANDED BY DEFAULT
+# Page configuration - FORCE SIDEBAR OPEN BY DEFAULT
 st.set_page_config(
     page_title="Mirage Employee Portal",
     page_icon="🔐",
@@ -11,35 +11,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- HIDE TOP TOOLBAR (SHARE, GITHUB, EDIT), MANAGE APP BUTTON & BRANDING ---
+# --- SURGICAL CSS: REMOVE MANAGE APP & TOP TOOLBAR / KEEP SIDEBAR PANEL INTACT ---
 hide_streamlit_style = """
     <style>
-    /* Hide top right toolbar (Share, Edit, Star, GitHub icons) */
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    header[data-testid="stHeader"] {
-        background: transparent !important;
-    }
-
-    /* Hide "Manage app" button and Streamlit Cloud status widgets */
+    /* 1. HIDE BOTTOM-RIGHT 'MANAGE APP' BUTTON & FOOTER */
     [data-testid="manage-app-button"],
     button[title="Manage app"],
     .stAppViewerFooter,
+    div[data-testid="stAppViewerFooter"],
     div[class*="viewerBadge"],
-    .viewerBadge_container__1QSob,
-    [data-testid="stStatusWidget"],
+    footer {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* 2. HIDE TOP-RIGHT TOOLBAR (Share, Edit, Star, GitHub) & DEPLOY BUTTONS */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    #MainMenu {
+        visibility: hidden !important;
+    }
     .stDeployButton {
         display: none !important;
     }
 
-    /* Hide standard footer & main menu */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Ensure Sidebar styling remains clean */
+    /* 3. EXPLICITLY RESTORE SIDEBAR & SIDEBAR TOGGLE CONTROL BUTTON */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        z-index: 100 !important;
+    }
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        z-index: 999999 !important;
+    }
     [data-testid="stSidebar"] {
         background-color: #f9f9f9;
+        display: flex !important;
     }
     </style>
 """
@@ -248,13 +260,12 @@ def save_excel_safely(df):
     st.cache_data.clear()
 
 # ====================================================================
-# ADMIN PANEL (SIDEBAR) - PLAIN WHITE PANEL FIRST
+# ADMIN PANEL (SIDEBAR)
 # ====================================================================
 st.sidebar.markdown("---")
 st.sidebar.subheader(t["admin_header"])
 
 if not st.session_state.admin_logged_in:
-    # CLEAN, PLAIN INPUT BOX ONLY
     with st.sidebar.form(key="admin_login_form"):
         admin_pass_input = st.text_input(t["admin_pass_label"], type="password")
         submit_admin = st.form_submit_button(t["admin_pass_btn"])
@@ -267,7 +278,6 @@ if not st.session_state.admin_logged_in:
             else:
                 st.sidebar.error(t["admin_access_denied"])
 else:
-    # SHOW ADMIN CONTROLS ONLY AFTER ENTERING ADMIN PASSWORD
     st.sidebar.success("✅ Admin Authenticated")
     
     has_file = os.path.exists(SHARED_FILE)
