@@ -45,7 +45,7 @@ def set_portal_status(is_open: bool):
 # --- Language Translations Dictionary ---
 translations = {
     "English": {
-        "title": "🔐 تفاصيل الراتب الشهرية لافراد شركة ميراج",
+        "title": "🔐 تفاصيل الرواتب الشهرية لافراد شركة ميراج",
         "subtitle": "Please enter your National ID to proceed.",
         "admin_header": "Admin Control Panel",
         "admin_pass_label": "Enter Admin Password:",
@@ -90,7 +90,7 @@ translations = {
         "reset_success": "Password successfully reset for {name}.",
     },
     "العربية": {
-        "title": "🔐 تفاصيل الراتب الشهرية لافراد شركة ميراج",
+        "title": "🔐 تفاصيل الرواتب الشهرية لافراد شركة ميراج",
         "subtitle": "الرجاء إدخال الرقم القومي للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
         "admin_pass_label": "أدخل كلمة مرور المسؤول:",
@@ -323,14 +323,14 @@ else:
                 mime=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
             )
 
-        st.sidebar.markdown("---")
-        if st.sidebar.button(t["remove_btn"]):
-            if os.path.exists(SHARED_FILE):
-                os.remove(SHARED_FILE)
-            if os.path.exists(STATUS_FILE):
-                os.remove(STATUS_FILE)
-            st.cache_data.clear()
-            st.rerun()
+    st.sidebar.markdown("---")
+    if st.sidebar.button(t["remove_btn"]):
+        if os.path.exists(SHARED_FILE):
+            os.remove(SHARED_FILE)
+        if os.path.exists(STATUS_FILE):
+            os.remove(STATUS_FILE)
+        st.cache_data.clear()
+        st.rerun()
 
     if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
         st.session_state.admin_logged_in = False
