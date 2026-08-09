@@ -4,17 +4,17 @@ import pandas as pd
 import streamlit as st
 
 # Page configuration
-st.set_page_config(page_title="Employee Login Portal", page_icon="🔐")
+st.set_page_config(page_title="Mirage Employee Portal", page_icon="🔐", layout="wide")
 
 # --- GLOBAL SYSTEM FILES ---
 SHARED_FILE = "shared_payroll.xlsx"
 STATUS_FILE = "portal_status.txt"  
-ADMIN_STATE_FILE = "admin_session.txt"  # Tracks if admin is actively logged in globally
+ADMIN_STATE_FILE = "admin_session.txt"  
 ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
 
 # --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
 def is_admin_active():
-    """Returns True ONLY if the admin has actively unlocked the panel in this session."""
+    """Returns True ONLY if the admin has actively unlocked the panel."""
     if not os.path.exists(ADMIN_STATE_FILE):
         return False
     try:
@@ -27,7 +27,7 @@ def set_admin_active(is_active: bool):
     with open(ADMIN_STATE_FILE, "w") as f:
         f.write("ACTIVE" if is_active else "INACTIVE")
     if not is_active:
-        # If admin logs out or session drops, instantly wipe the shared data and close portal
+        # Instantly wipe shared data and status when admin logs out/closes session
         if os.path.exists(SHARED_FILE):
             os.remove(SHARED_FILE)
         if os.path.exists(STATUS_FILE):
@@ -54,7 +54,7 @@ def set_portal_status(is_open: bool):
 # --- Language Translations Dictionary ---
 translations = {
     "English": {
-        "title": "🔐 Employee Login Portal",
+        "title": "🔐 Mirage Employee Portal",
         "subtitle": "Please enter your National ID to proceed.",
         "admin_header": "Admin Control Panel",
         "admin_pass_label": "Enter Admin Password:",
@@ -68,11 +68,11 @@ translations = {
         ),
         "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
-        "remove_btn": "Remove Excel Sheet (Lock Portal & Logout All)",
+        "remove_btn": "Remove Excel Sheet (Lock Portal & Wipe Data)",
         "refresh_btn": "🔄 Refresh Data",
         "refresh_success": "Data refreshed successfully!",
         "upload_success": "Excel uploaded successfully! Portal automatically unlocked.",
-        "remove_success": "Excel file removed. Portal locked and everyone logged out.",
+        "remove_success": "Excel file removed. Portal locked and data wiped.",
         "input_label": "National ID (الرقم القومي):",
         "check_id_btn": "Next / Verify ID",
         "password_input_label": "Password (كلمة المرور):",
@@ -89,7 +89,7 @@ translations = {
         "error_login": "Incorrect Password. Please check and try again.",
         "register_success": "Password created successfully! Welcome.",
         "error_read": "Error reading file: {error}",
-        "dashboard_title": "Detailed Payroll & Salary Breakdown",
+        "dashboard_title": "Detailed Payroll & Operations Breakdown",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
         "table_col_key": "Field / Column",
@@ -99,7 +99,7 @@ translations = {
         "reset_success": "Password successfully reset for {name}.",
     },
     "العربية": {
-        "title": "🔐 بوابة تسجيل دخول الموظفين",
+        "title": "🔐 بوابة موظفي شركة ميراج",
         "subtitle": "الرجاء إدخال الرقم القومي للمتابعة.",
         "admin_header": "لوحة تحكم المسؤول (Admin)",
         "admin_pass_label": "أدخل كلمة مرور المسؤول:",
@@ -113,11 +113,11 @@ translations = {
         ),
         "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
-        "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة وتسجيل خروج الجميع)",
+        "remove_btn": "حذف ملف الـ Excel (إغلاق البوابة ومسح البيانات)",
         "refresh_btn": "🔄 تحديث البيانات",
         "refresh_success": "تم تحديث البيانات بنجاح!",
         "upload_success": "تم رفع الملف بنجاح! تم فتح البوابة تلقائياً.",
-        "remove_success": "تم حذف الملف وإغلاق البوابة وتسجيل خروج الجميع.",
+        "remove_success": "تم حذف الملف وإغلاق البوابة ومسح البيانات.",
         "input_label": "الرقم القومي (National ID):",
         "check_id_btn": "التالي / التحقق من الرقم",
         "password_input_label": "كلمة المرور (Password):",
@@ -134,7 +134,7 @@ translations = {
         "error_login": "كلمة المرور غير صحيحة. يرجى التحقق.",
         "register_success": "تم إنشاء كلمة المرور بنجاح! أهلاً بك.",
         "error_read": "خطأ في قراءة الملف: {error}",
-        "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
+        "dashboard_title": "تفصيل مفردات الراتب والتشغيل",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
         "table_col_key": "الحقل / العمود",
@@ -149,7 +149,7 @@ translations = {
 selected_lang = st.sidebar.selectbox("Choose Language / اللغة", ["العربية", "English"])
 t = translations[selected_lang]
 
-# --- Initialize User Session States ---
+# --- Initialize User Session States (Strictly Isolated from Admin State) ---
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
@@ -171,7 +171,7 @@ def read_excel_file(file_path_or_buffer):
     try:
         return pd.read_excel(file_path_or_buffer, dtype=str)
     except Exception as e:
-        raise Exception(f"Could not read the Excel file. Please ensure 'openpyxl' is in your requirements.txt file. Details: {e}")
+        raise Exception(f"Could not read the Excel file: {e}")
 
 def load_excel_df():
     if not os.path.exists(SHARED_FILE):
@@ -314,7 +314,6 @@ else:
             st.sidebar.markdown("---")
             df_export = df_admin.copy()
             
-            # Map Arabic columns to English for export, keeping Password included
             export_rename_map = {
                 "الرقم القومي": "National ID",
                 "الرقم القومى": "National ID",
@@ -332,7 +331,7 @@ else:
             st.sidebar.download_button(
                 label=t["download_btn"],
                 data=excel_bytes,
-                file_name="employee_payroll_database.xlsx",
+                file_name="mirage_payroll_database.xlsx",
                 mime=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
             )
 
@@ -340,7 +339,8 @@ else:
         if st.sidebar.button(t["remove_btn"]):
             if os.path.exists(SHARED_FILE):
                 os.remove(SHARED_FILE)
-            set_portal_status(False) 
+            if os.path.exists(STATUS_FILE):
+                os.remove(STATUS_FILE)
             st.cache_data.clear()
             st.rerun()
 
@@ -378,7 +378,7 @@ if not is_portal_open():
 
 
 # ====================================================================
-# ONLY EMPLOYEES IN AN UNLOCKED PORTAL WITH A SHARED FILE REACH HERE
+# EMPLOYEE PORTAL VIEW (Standard users never inherit admin rights)
 # ====================================================================
 
 if st.session_state.get("logged_in_user"):
