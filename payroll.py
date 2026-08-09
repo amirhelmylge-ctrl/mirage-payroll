@@ -157,6 +157,8 @@ if "employee_row_data" not in st.session_state:
     st.session_state.employee_row_data = None
 if "checked_id" not in st.session_state:
     st.session_state.checked_id = None
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
 
 # --- WIPE SESSION IF PORTAL/ADMIN IS NOT ACTIVE ---
 if not is_portal_open():
@@ -201,7 +203,6 @@ def load_excel_df():
             )
         return df
     except Exception as e:
-        # Automatically wipe corrupted file to prevent app crash loop
         if os.path.exists(SHARED_FILE):
             try:
                 os.remove(SHARED_FILE)
@@ -266,7 +267,12 @@ else:
     else:
         st.sidebar.warning("⚠️ Upload an Excel sheet to enable portal access.")
 
-    uploaded_file = st.sidebar.file_uploader(t["upload_label"], type=["xlsx", "xls"])
+    # File uploader using a dynamic key to clear the widget state upon successful processing
+    uploaded_file = st.sidebar.file_uploader(
+        t["upload_label"], 
+        type=["xlsx", "xls"], 
+        key=f"uploader_{st.session_state.uploader_key}"
+    )
 
     if uploaded_file is not None:
         try:
@@ -292,6 +298,8 @@ else:
             save_excel_safely(df_upload)
             set_portal_status(True)
             
+            # Increment uploader key to clear the uploaded file widget instantly
+            st.session_state.uploader_key += 1
             st.sidebar.success(t["upload_success"])
             st.rerun()
         except Exception as e:
