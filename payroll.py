@@ -3,19 +3,28 @@ import os
 import pandas as pd
 import streamlit as st
 
-# Page configuration
-st.set_page_config(page_title="Mirage Employee Portal", page_icon="🔐", layout="wide")
+# Page configuration - FORCING SIDEBAR TO BE EXPANDED BY DEFAULT
+st.set_page_config(
+    page_title="Mirage Employee Portal",
+    page_icon="🔐",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- HIDE STREAMLIT BRANDING, GITHUB, SHARE, & MANAGE APP BUTTONS ---
+# --- HIDE STREAMLIT BRANDING & DEPLOY BUTTONS (WITHOUT HIDING SIDEBAR TOGGLE) ---
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display:none;}
+    .stDeployButton {display:none !important;}
     .viewerBadge_container__1QSob {display: none !important;}
-    [data-testid="stDecoration"] {display: none;}
-    [data-testid="stStatusWidget"] {display: none;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    
+    /* Ensure Sidebar remains accessible and clean */
+    [data-testid="stSidebar"] {
+        background-color: #f9f9f9;
+    }
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -61,15 +70,15 @@ translations = {
     "English": {
         "title": "🔐 تفاصيل الراتب الشهرية لافراد شركة ميراج",
         "subtitle": "Please enter your National ID to proceed.",
-        "admin_header": "Admin Control Panel",
+        "admin_header": "🔑 Admin Portal Access",
         "admin_pass_label": "Enter Admin Password:",
         "admin_pass_btn": "Unlock Admin Panel",
         "admin_access_denied": "Incorrect Admin Password.",
         "admin_panel_unlocked": "Admin Panel Unlocked Successfully!",
         "portal_master_toggle": "🔓 Enable Employee Portal Access",
         "portal_locked_msg": (
-            "⚠️ PORTAL LOCKED: Employee login is completely disabled. The "
-            "Administrator must be logged in and unlock the portal to grant access."
+            "⚠️ PORTAL LOCKED: Employee login is disabled. "
+            "Please log in as Admin to upload payroll data and open access."
         ),
         "upload_label": "Upload Employees Excel File (.xlsx or .xls)",
         "download_btn": "📥 Download Updated Database (Secure)",
@@ -106,15 +115,15 @@ translations = {
     "العربية": {
         "title": "🔐 تفاصيل الراتب الشهرية لافراد شركة ميراج",
         "subtitle": "الرجاء إدخال الرقم القومي للمتابعة.",
-        "admin_header": "لوحة تحكم المسؤول (Admin)",
+        "admin_header": "🔑 دخول لوحة المسؤول (Admin)",
         "admin_pass_label": "أدخل كلمة مرور المسؤول:",
         "admin_pass_btn": "فتح لوحة المسؤول",
         "admin_access_denied": "كلمة مرور المسؤول غير صحيحة.",
         "admin_panel_unlocked": "تم فتح لوحة المسؤول بنجاح!",
         "portal_master_toggle": "🔓 تفعيل دخول الموظفين للبوابة",
         "portal_locked_msg": (
-            "⚠️ البوابة مغلقة: تسجيل دخول الموظفين معطل بالكامل. يجب أن يكون المسؤول "
-            "مسجلاً للدخول ويفعل البوابة للسماح بالوصول."
+            "⚠️ البوابة مغلقة: تسجيل دخول الموظفين معطل حالياً. "
+            "يرجى تسجيل الدخول كمسؤول لرفع ملف الراتب وفتح البوابة."
         ),
         "upload_label": "رفع ملف الـ Excel للموظفين (.xlsx أو .xls)",
         "download_btn": "📥 تحميل قاعدة البيانات (Excel الآمن)",
@@ -222,11 +231,14 @@ def save_excel_safely(df):
     df.to_excel(SHARED_FILE, index=False)
     st.cache_data.clear()
 
-# --- ADMIN SECTION (Sidebar - Clean/Plain Login First) ---
+# ====================================================================
+# ADMIN PANEL (SIDEBAR) - PLAIN WHITE PANEL FIRST
+# ====================================================================
 st.sidebar.markdown("---")
-st.sidebar.header(t["admin_header"])
+st.sidebar.subheader(t["admin_header"])
 
 if not st.session_state.admin_logged_in:
+    # CLEAN, PLAIN INPUT BOX ONLY
     with st.sidebar.form(key="admin_login_form"):
         admin_pass_input = st.text_input(t["admin_pass_label"], type="password")
         submit_admin = st.form_submit_button(t["admin_pass_btn"])
@@ -234,11 +246,14 @@ if not st.session_state.admin_logged_in:
         if submit_admin:
             if admin_pass_input == ADMIN_PASSWORD:
                 st.session_state.admin_logged_in = True
-                st.success(t["admin_panel_unlocked"])
+                st.sidebar.success(t["admin_panel_unlocked"])
                 st.rerun()
             else:
                 st.sidebar.error(t["admin_access_denied"])
 else:
+    # SHOW ADMIN CONTROLS ONLY AFTER ENTERING ADMIN PASSWORD
+    st.sidebar.success("✅ Admin Authenticated")
+    
     has_file = os.path.exists(SHARED_FILE)
     if has_file:
         current_status = is_portal_open()
@@ -252,7 +267,7 @@ else:
     else:
         st.sidebar.warning("⚠️ Upload an Excel sheet to enable portal access.")
 
-    # File uploader using a dynamic key to clear the widget state upon successful processing
+    # File Uploader
     uploaded_file = st.sidebar.file_uploader(
         t["upload_label"], 
         type=["xlsx", "xls"], 
@@ -283,7 +298,6 @@ else:
             save_excel_safely(df_upload)
             set_portal_status(True)
             
-            # Increment uploader key to clear the uploaded file widget instantly
             st.session_state.uploader_key += 1
             st.sidebar.success(t["upload_success"])
             st.rerun()
@@ -308,10 +322,10 @@ else:
                         if st.button(t["reset_pass_btn"], key=f"reset_{nid}_{idx}"):
                             df_admin.at[idx, "Password"] = ""
                             save_excel_safely(df_admin)
-                            st.success(t["reset_success"].format(name=name))
+                            st.sidebar.success(t["reset_success"].format(name=name))
                             st.rerun()
                     else:
-                        st.info("No password set yet.")
+                        st.sidebar.info("No password set yet.")
 
             st.sidebar.markdown("---")
             df_export = df_admin.copy()
@@ -346,13 +360,16 @@ else:
             st.cache_data.clear()
             st.rerun()
 
+    st.sidebar.markdown("---")
     if st.sidebar.button("Lock Admin Panel / قفل لوحة المسؤول"):
         st.session_state.admin_logged_in = False
         st.cache_data.clear()
         st.rerun()
 
 
-# --- MAIN PAGE LAYOUT ---
+# ====================================================================
+# MAIN PAGE LAYOUT
+# ====================================================================
 col_title, col_refresh = st.columns([4, 1])
 with col_title:
     st.title(t["title"])
@@ -382,7 +399,6 @@ if not is_portal_open():
 # ====================================================================
 # EMPLOYEE PORTAL VIEW
 # ====================================================================
-
 if st.session_state.get("logged_in_user"):
     df_verify = load_excel_df()
     user_exists = False
