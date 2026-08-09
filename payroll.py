@@ -1,44 +1,4 @@
-import io
-import os
-import pandas as pd
-import streamlit as st
 
-# Page configuration
-st.set_page_config(page_title="Mirage Employee Portal", page_icon="🔐", layout="wide")
-
-# --- GLOBAL SYSTEM FILES ---
-SHARED_FILE = "shared_payroll.xlsx"
-STATUS_FILE = "portal_status.txt"  
-ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
-
-# --- INITIALIZE SESSION STATES ---
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
-if "logged_in_user" not in st.session_state:
-    st.session_state.logged_in_user = None
-if "logged_in_id" not in st.session_state:
-    st.session_state.logged_in_id = None
-if "employee_row_data" not in st.session_state:
-    st.session_state.employee_row_data = None
-if "checked_id" not in st.session_state:
-    st.session_state.checked_id = None
-if "uploader_key" not in st.session_state:
-    st.session_state.uploader_key = 0
-
-# --- CORE LOGIC: PORTAL STATUS GATEKEEPER ---
-def is_portal_open():
-    """Returns True ONLY if shared file exists and status says OPEN."""
-    if not os.path.exists(SHARED_FILE):
-        return False
-    if not os.path.exists(STATUS_FILE):
-        return False
-    try:
-        with open(STATUS_FILE, "r") as f:
-            return f.read().strip() == "OPEN"
-    except Exception:
-        return False
-
-def set_portal_status(is_open: bool):
     with open(STATUS_FILE, "w") as f:
         f.write("OPEN" if is_open else "CLOSED")
 
