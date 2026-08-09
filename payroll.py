@@ -27,7 +27,6 @@ def set_admin_active(is_active: bool):
     with open(ADMIN_STATE_FILE, "w") as f:
         f.write("ACTIVE" if is_active else "INACTIVE")
     if not is_active:
-        # Instantly wipe shared data and status when admin logs out/closes session
         if os.path.exists(SHARED_FILE):
             os.remove(SHARED_FILE)
         if os.path.exists(STATUS_FILE):
@@ -149,7 +148,7 @@ translations = {
 selected_lang = st.sidebar.selectbox("Choose Language / اللغة", ["العربية", "English"])
 t = translations[selected_lang]
 
-# --- Initialize User Session States (Strictly Isolated from Admin State) ---
+# --- Initialize User Session States ---
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "logged_in_id" not in st.session_state:
@@ -201,7 +200,18 @@ def load_excel_df():
                 .str.strip()
             )
         return df
-    except Exception:
+    except Exception as e:
+        # Automatically wipe corrupted file to prevent app crash loop
+        if os.path.exists(SHARED_FILE):
+            try:
+                os.remove(SHARED_FILE)
+            except Exception:
+                pass
+        if os.path.exists(STATUS_FILE):
+            try:
+                os.remove(STATUS_FILE)
+            except Exception:
+                pass
         return None
 
 def save_excel_safely(df):
@@ -265,9 +275,8 @@ else:
 
             existing_passwords = {}
             if os.path.exists(SHARED_FILE):
-                df_old = read_excel_file(SHARED_FILE)
-                df_old.columns = df_old.columns.str.strip()
-                if "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
+                df_old = load_excel_df()
+                if df_old is not None and "الرقم القومي" in df_old.columns and "Password" in df_old.columns:
                     for _, row in df_old.iterrows():
                         nid = str(row["الرقم القومي"]).strip().replace(".0", "")
                         pwd = str(row["Password"]).strip()
@@ -378,7 +387,7 @@ if not is_portal_open():
 
 
 # ====================================================================
-# EMPLOYEE PORTAL VIEW (Standard users never inherit admin rights)
+# EMPLOYEE PORTAL VIEW
 # ====================================================================
 
 if st.session_state.get("logged_in_user"):
@@ -427,7 +436,6 @@ if st.session_state.get("logged_in_user"):
         st.rerun()
 
 else:
-    # --- RENDER LOGIN SCREEN ---
     st.write(t["subtitle"])
     try:
         df = load_excel_df()
@@ -468,7 +476,7 @@ else:
                     if current_pass == "" or current_pass.lower() == "nan":
                         st.info("✨ First time here? Please create a secure, unique password for your account.")
                         new_pass = st.text_input(t["new_password_label"], type="password", key="new_pass_field")
-                        confirm_pass = st.text_input(t["confirm_password_label"], type="password", key="confirm_pass_field")
+                        confirm_pass = st.text_input(t["confirm_password_label"], type="password", key="new_pass_field_confirm")
                         submit_register = st.button(t["register_btn"])
 
                         if submit_register:
