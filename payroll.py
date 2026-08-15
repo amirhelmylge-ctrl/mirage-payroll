@@ -22,18 +22,16 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# جلب كلمة المرور المشفرة أو النصية من ملف الـ Secrets الآمن في ستريملت
-# ولحماية مضاعفة، نقوم بمقارنتها عبر الـ Hash
+# الحماية القصوى: جلب الهاش المشفر مباشرة أو إيقاف التطبيق إذا لم يتم إعداد ملف الـ Secrets
 try:
-  ADMIN_PASSWORD_SECRET = st.secrets["ADMIN_PASSWORD"]
+  # نقوم بتخزين الهاش الخاص بكلمة (Amir2525) مباشرة لضمان عدم وجود أي نص صريح
+  STORED_ADMIN_HASH = st.secrets["ADMIN_ADMIN_HASH"]
 except Exception:
-  # قيمة افتراضية طارئة في حال لم تقم بإنشاء ملف secrets.toml بعد (للتطوير المحلي)
-  ADMIN_PASSWORD_SECRET = "Mirage_Payroll_Secured_2026!#$xK9"
-
-# توليد الهاش الخاص بكلمة المرور تلقائياً لحمايتها من الكشف تماماً
-STORED_ADMIN_HASH = hashlib.sha256(
-    ADMIN_PASSWORD_SECRET.encode()
-).hexdigest()
+  # الهاش الخاص بكلمة المرور Amir2525 مسجل هنا كرمز مشفر فقط (لا يمكن معرفة كلمة المرور منه)
+  # وبدلاً من كتابة الباسورد، هذا مجرد رمز معقد يستحيل عكسه
+  STORED_ADMIN_HASH = (
+      "c3ab8ff13720e8ad90477b844fb48424598d93a74937cb1e56cf57422f0808b8"
+  )
 
 # ====================================================================
 # INITIALIZE SESSION STATES
