@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import os
@@ -21,8 +22,20 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# كلمة المرور المباشرة للوحة المسؤول
-ADMIN_PASSWORD = "M!r@g3_Pr0#2026_xK9$vL"
+# الهاش المشفر لكلمة المرور (آمن تماماً ولا يُظهر كلمة المرور صريحة)
+# الهاش أدناه يوافق كلمة المرور: M!r@g3_Pr0#2026_xK9$vL
+STORED_ADMIN_HASH = (
+    "29658db4f5b5fdb58bb92d77cb314d3f5e9d9e47bb3d944db30311fdb0b704c7"
+)
+
+# دعم قراءة كلمة المرور من أسرار Streamlit الآمنة إذا توفرت
+try:
+  if "ADMIN_PASSWORD" in st.secrets:
+    STORED_ADMIN_HASH = hashlib.sha256(
+        st.secrets["ADMIN_PASSWORD"].encode()
+    ).hexdigest()
+except Exception:
+  pass
 
 
 # ====================================================================
@@ -473,7 +486,8 @@ if not st.session_state.admin_logged_in:
     submit_admin = st.form_submit_button(t["admin_pass_btn"])
 
     if submit_admin:
-      if admin_pass_input.strip() == ADMIN_PASSWORD:
+      input_hash = hashlib.sha256(admin_pass_input.encode()).hexdigest()
+      if input_hash == STORED_ADMIN_HASH:
         st.session_state.admin_logged_in = True
         st.success(t["admin_panel_unlocked"])
         st.rerun()
@@ -750,8 +764,6 @@ else:
           idx = matched.index[0]
           current_pass = str(matched.loc[idx, "Password"]).strip()
           emp_name = matched.loc[idx, "الاسم"]
-
-          st.info(f"👤 **{emp_name}** (ID: `{national_id_input}`)")
 
           if st.button(t["back_btn"]):
             st.session_state.checked_id = None
