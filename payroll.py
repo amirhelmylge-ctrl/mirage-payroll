@@ -22,10 +22,9 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# الحماية القصوى: استخدام الهاش المشفر الخاص بـ (M!r@g3_Pr0#2026_xK9$vL) مباشرة
-# لا يمكن لأحد معرفة كلمة المرور من خلال هذا الهاش
+# الهاش الصحيح والمطابق تماماً لكلمة المرور: M!r@g3_Pr0#2026_xK9$vL
 STORED_ADMIN_HASH = (
-    "4d5463f27f8a3d537f8f63bb006a86c99c855845cdb2c6e643ed2d56c4067332"
+    "29658db4f5b5fdb58bb92d77cb314d3f5e9d9e47bb3d944db30311fdb0b704c7"
 )
 
 # ملاحظة: يمكنك بدلاً من ذلك استخدام st.secrets إذا أردت ربطها بملف خارجي
@@ -486,7 +485,6 @@ if not st.session_state.admin_logged_in:
     submit_admin = st.form_submit_button(t["admin_pass_btn"])
 
     if submit_admin:
-      # مقارنة الهاش المدخل بالهاش المخزن سراً
       input_hash = hashlib.sha256(admin_pass_input.encode()).hexdigest()
       if input_hash == STORED_ADMIN_HASH:
         st.session_state.admin_logged_in = True
