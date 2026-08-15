@@ -21,17 +21,15 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# كلمة مرور المسؤول (يمكنك تغييرها هنا مباشرة إلى أي كلمة تريدها)
-DEFAULT_ADMIN_PASSWORD = "MirageAdmin2026"
-
-# دعم قراءة كلمة المرور من أسرار Streamlit الآمنة إذا توفرت، وإلا يستخدم القيمة الافتتاحية
+# قراءة كلمة المرور حصراً من ملف الأسرار الآمن (St.secrets) لضمان السرية التامة
 try:
-  if "ADMIN_PASSWORD" in st.secrets:
-    ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
-  else:
-    ADMIN_PASSWORD = DEFAULT_ADMIN_PASSWORD
+  ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
 except Exception:
-  ADMIN_PASSWORD = DEFAULT_ADMIN_PASSWORD
+  st.error(
+      "⚠️ تنبيه أمني: لم يتم العثور على كلمة مرور المسؤول في ملف الأسرار"
+      " (st.secrets). يرجى إعداد ملف الـ secrets."
+  )
+  st.stop()
 
 
 # ====================================================================
