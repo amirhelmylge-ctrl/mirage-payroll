@@ -18,7 +18,7 @@ SHARED_FILE = "shared_payroll.xlsx"
 STATUS_FILE = "portal_status.txt" 
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
-ADMIN_PASSWORD = "Mirage_Payroll_Secured_2026!#$xK9"
+ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
 
 # ====================================================================
 # INITIALIZE SESSION STATES
