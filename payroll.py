@@ -1,4 +1,3 @@
-import hashlib
 import io
 import json
 import os
@@ -22,19 +21,8 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# الهاش الصحيح والمطابق تماماً لكلمة المرور: M!r@g3_Pr0#2026_xK9$vL
-STORED_ADMIN_HASH = (
-    "29658db4f5b5fdb58bb92d77cb314d3f5e9d9e47bb3d944db30311fdb0b704c7"
-)
-
-# ملاحظة: يمكنك بدلاً من ذلك استخدام st.secrets إذا أردت ربطها بملف خارجي
-try:
-  if "ADMIN_PASSWORD_SECRET" in st.secrets:
-    STORED_ADMIN_HASH = hashlib.sha256(
-        st.secrets["ADMIN_PASSWORD_SECRET"].encode()
-    ).hexdigest()
-except Exception:
-  pass
+# كلمة المرور المباشرة للوحة المسؤول
+ADMIN_PASSWORD = "M!r@g3_Pr0#2026_xK9$vL"
 
 
 # ====================================================================
@@ -485,8 +473,7 @@ if not st.session_state.admin_logged_in:
     submit_admin = st.form_submit_button(t["admin_pass_btn"])
 
     if submit_admin:
-      input_hash = hashlib.sha256(admin_pass_input.encode()).hexdigest()
-      if input_hash == STORED_ADMIN_HASH:
+      if admin_pass_input.strip() == ADMIN_PASSWORD:
         st.session_state.admin_logged_in = True
         st.success(t["admin_panel_unlocked"])
         st.rerun()
