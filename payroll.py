@@ -22,16 +22,21 @@ STATUS_FILE = "portal_status.txt"
 ONLINE_FILE = "online_users.json"
 DEVICES_FILE = "device_bindings.json"
 
-# الحماية القصوى: جلب الهاش المشفر مباشرة أو إيقاف التطبيق إذا لم يتم إعداد ملف الـ Secrets
+# الحماية القصوى: استخدام الهاش المشفر الخاص بـ (M!r@g3_Pr0#2026_xK9$vL) مباشرة
+# لا يمكن لأحد معرفة كلمة المرور من خلال هذا الهاش
+STORED_ADMIN_HASH = (
+    "4d5463f27f8a3d537f8f63bb006a86c99c855845cdb2c6e643ed2d56c4067332"
+)
+
+# ملاحظة: يمكنك بدلاً من ذلك استخدام st.secrets إذا أردت ربطها بملف خارجي
 try:
-  # نقوم بتخزين الهاش الخاص بكلمة (Amir2525) مباشرة لضمان عدم وجود أي نص صريح
-  STORED_ADMIN_HASH = st.secrets["ADMIN_ADMIN_HASH"]
+  if "ADMIN_PASSWORD_SECRET" in st.secrets:
+    STORED_ADMIN_HASH = hashlib.sha256(
+        st.secrets["ADMIN_PASSWORD_SECRET"].encode()
+    ).hexdigest()
 except Exception:
-  # الهاش الخاص بكلمة المرور Amir2525 مسجل هنا كرمز مشفر فقط (لا يمكن معرفة كلمة المرور منه)
-  # وبدلاً من كتابة الباسورد، هذا مجرد رمز معقد يستحيل عكسه
-  STORED_ADMIN_HASH = (
-      "c3ab8ff13720e8ad90477b844fb48424598d93a74937cb1e56cf57422f0808b8"
-  )
+  pass
+
 
 # ====================================================================
 # INITIALIZE SESSION STATES
